@@ -1,15 +1,26 @@
 ball_fcnn_debug: false  # only active when true and vision/debug is true, too!
-ball_fcnn_model_path: '/models/fcnn031'
+ball_fcnn_model_path: '/models/fcnn03'
 ball_fcnn_threshold: .5  # minimal value for a candidate to be considered
 ball_fcnn_expand_stepsize: 4
 ball_fcnn_pointcloud_stepsize: 10
 ball_fcnn_shuffle_candidate_list: false  # shuffles the list of possible candidate points
 ball_fcnn_min_ball_diameter: 5
-ball_fcnn_max_ball_diameter: 200
-ball_fcnn_publish_output: false
+ball_fcnn_max_ball_diameter: 2000
+ball_fcnn_publish_output: true
 ball_fcnn_publish_horizon_offset: 5
 
-field_color_detector_path: '/config/color_spaces/d125_Teppich_interpolated.txt'
+goalpost_fcnn_debug: false  # only active when true and vision/debug is true, too!
+goalpost_fcnn_model_path: '/models/goalpost'
+goalpost_fcnn_threshold: .5  # minimal value for a candidate to be considered
+goalpost_fcnn_expand_stepsize: 4
+goalpost_fcnn_pointcloud_stepsize: 10
+goalpost_fcnn_shuffle_candidate_list: false  # shuffles the list of possible candidate points
+goalpost_fcnn_min_goalpost_diameter: 5
+goalpost_fcnn_max_goalpost_diameter: 200
+goalpost_fcnn_publish_output: true
+goalpost_fcnn_publish_horizon_offset: 5
+
+field_color_detector_path: '/config/color_spaces/f031_lightcontrol.yaml'
 field_color_detector_use_hsv_green: false
 field_color_detector_hsv_lower_values_h: 46
 field_color_detector_hsv_lower_values_s: 101
