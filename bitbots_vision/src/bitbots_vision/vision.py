@@ -46,6 +46,7 @@ class Vision:
         self.horizon_detector.set_image(image)
         self.obstacle_detector.set_image(image)
         self.line_detector.set_image(image)
+        self.goalpost_detector.set_image(image)
 
         self.runtime_evaluator.set_image()
 
@@ -162,8 +163,9 @@ class Vision:
                 (255, 0, 0),
                 thickness=3
             )
+            print(len(self.goalpost_detector.get_candidates()))
             self.debug_image_dings.draw_obstacle_candidates(
-                self.obstacle_detector.get_white_obstacles(),
+                self.goalpost_detector.get_candidates(),
                 (255, 255, 255),
                 thickness=3
             )
@@ -302,6 +304,18 @@ class Vision:
             'publish_horizon_offset': config['ball_fcnn_publish_horizon_offset'],
         }
 
+        self.goalpost_fcnn_config = {
+            'debug': config['goalpost_fcnn_debug'] and self.debug_image,
+            'threshold': config['goalpost_fcnn_threshold'],
+            'expand_stepsize': config['goalpost_fcnn_expand_stepsize'],
+            'pointcloud_stepsize': config['goalpost_fcnn_pointcloud_stepsize'],
+            'shuffle_candidate_list': config['goalpost_fcnn_shuffle_candidate_list'],
+            'min_candidate_diameter': config['goalpost_fcnn_min_goalpost_diameter'],
+            'max_candidate_diameter': config['goalpost_fcnn_max_goalpost_diameter'],
+            'candidate_refinement_iteration_count': config['goalpost_fcnn_candidate_refinement_iteration_count'],
+            'publish_horizon_offset': config['goalpost_fcnn_publish_horizon_offset'],
+        }
+
         # load fcnn
         if config['vision_ball_classifier'] == 'fcnn':
             if 'ball_fcnn_model_path' not in self.config or \
@@ -309,13 +323,26 @@ class Vision:
                     self.config['vision_ball_classifier'] != config['vision_ball_classifier']:
                 ball_fcnn_path = self.package_path + config['ball_fcnn_model_path']
                 if not os.path.exists(ball_fcnn_path):
-                    rospy.logerr('AAAAHHHH! The specified fcnn model file doesn\'t exist!')
+                    rospy.logerr('AAAAHHHH! The specified ball fcnn model file doesn\'t exist!')
                 self.ball_fcnn = live_fcnn_03.FCNN03(ball_fcnn_path, self.debug_printer)
                 rospy.logwarn(config['vision_ball_classifier'] + " vision is running now")
             self.ball_detector = fcnn_handler.FcnnHandler(self.ball_fcnn,
                                                           self.horizon_detector,
                                                           self.ball_fcnn_config,
                                                           self.debug_printer)
+
+        # load goalpost fcnn
+        if 'goalpost_fcnn_model_path' not in self.config or \
+                self.config['goalpost_fcnn_model_path'] != config['goalpost_fcnn_model_path'] or \
+                self.config['vision_goalpost_classifier'] != config['vision_goalpost_classifier']:
+            goalpost_fcnn_path = self.package_path + config['goalpost_fcnn_model_path']
+            if not os.path.exists(goalpost_fcnn_path):
+                rospy.logerr('AAAAHHHH! The specified goalpost fcnn model file doesn\'t exist!')
+            self.goalpost_fcnn = live_fcnn_03.FCNN03(goalpost_fcnn_path, self.debug_printer)
+        self.goalpost_detector = fcnn_handler.FcnnHandler(self.goalpost_fcnn,
+                                                      self.horizon_detector,
+                                                      self.goalpost_fcnn_config,
+                                                      self.debug_printer)
 
         # subscribers
         if 'ROS_img_msg_topic' not in self.config or \

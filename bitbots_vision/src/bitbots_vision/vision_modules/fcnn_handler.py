@@ -167,6 +167,7 @@ class FcnnHandler(CandidateFinder):
 
     def _get_raw_candidates(self):
         """
+        do not use this! the cpp version is way faster!
         returns a list of candidates [(Candidate), ...]
         :return: a list of candidates [(Candidate), ...]
         """
@@ -268,7 +269,7 @@ class FcnnHandler(CandidateFinder):
         msg = ImageWithRegionOfInterest()
         msg.header.frame_id = 'camera'
         msg.header.stamp = rospy.get_rostime()
-        horizon_top = self._horizon_detector.get_upper_bound(y_offset=self._horizon_offset)
+        horizon_top = 0 #  self._horizon_detector.get_upper_bound(y_offset=self._horizon_offset)
         image_cropped = self.get_fcnn_output()[horizon_top:]  # cut off at horizon
         msg.image = self.bridge.cv2_to_imgmsg(image_cropped, "mono8")
         msg.regionOfInterest.x_offset = 0
