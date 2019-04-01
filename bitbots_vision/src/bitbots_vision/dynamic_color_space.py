@@ -14,18 +14,22 @@ from sensor_msgs.msg import Image
 from bitbots_msgs.msg import ColorSpace, Config
 from bitbots_vision.vision_modules import horizon, color, debug, evaluator
 
+
 class DynamicColorSpace:
+    """
+    DynamicColorSpace is a ROS node, that is used by the vision node to better recognize the field color.
+    DynamicColorSpace is able to calculate dynamically changing color spaces to accommodate e.g. 
+    changing lighting conditions or to compensate for not optimized base color space files.
+
+    This node subscribes to an Image-message (default: image_raw) and to the 'vision_config'-message.
+    This node publishes ColorSpace-messages.
+    """
+
     def __init__(self):
         # type: () -> None
         """
-        DynamicColorSpace is a ROS node, that is used by the vision node to better recognize the field color.
-        DynamicColorSpace is able to calculate dynamically changing color spaces to accommodate e.g. 
-        changing lighting conditions or to compensate for not optimized base color space files.
-
-        This node subscribes to an Image-message (default: image_raw) and to the 'vision_config'-message.
-        This node publishes ColorSpace-messages.
-
         Initiating 'bitbots_dynamic_color_space' node.
+        TODO
 
         :return: None
         """
@@ -89,13 +93,13 @@ class DynamicColorSpace:
         # Set Color- and HorizonDetector
         self.color_detector = color.PixelListColorDetector(
             self.debug_printer,
-            self.package_path,
-            vision_config)
+            vision_config,
+            self.package_path)
             
         self.horizon_detector = horizon.HorizonDetector(
-            self.color_detector,
-            vision_config,
             self.debug_printer,
+            vision_config,
+            self.color_detector,
             self.runtime_evaluator) # TODO: handle runtime evaluator
 
         # Reset queue
@@ -252,10 +256,16 @@ class DynamicColorSpace:
 
 
 class Pointfinder():
+    """
+    Pointfinder is used to find false-color pixels with higher true-color / false-color ratio 
+    as threshold in their surrounding in masked image.
+    """
+
     def __init__(self, debug_printer, threshold, kernel_radius):
         # type: (DebugPrinter, float, int) -> None
         """
-        Pointfinder is used to find false-color pixels with higher true-color / false-color ratio as threshold in their surrounding in masked image.
+        Initiating Pointfinder.
+        TODO
 
         :param DebugPrinter: debug-printer
         :param float threshold: necessary amount of previously detected color in percentage
@@ -295,12 +305,17 @@ class Pointfinder():
         # Returns all pixels with a higher true-color / false-color ratio than the threshold
         return np.array(np.where(sum_array > self.threshold * (self.kernel.size - 1)))
 
+
 class Heuristic:
+    """
+    Filters new color space colors according to their position relative to the horizon.
+    Only colors that occur under the horizon and have no occurrences over the horizon get picked.
+    """
+
     def __init__(self, debug_printer):
         # type: (DebugPrinter) -> None
         """
-        Filters new color space colors according to their position relative to the horizon.
-        Only colors that occur under the horizon and have no occurrences over the horizon get picked.
+        Initiating Heuristic.
 
         :param DebugPrinter debug_printer: Debug-printer
         :return: None

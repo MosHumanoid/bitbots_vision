@@ -16,11 +16,17 @@ from bitbots_vision.vision_modules import lines, horizon, color, debug, live_cla
 from bitbots_vision.cfg import VisionConfig
 from bitbots_msgs.msg import Config
 
+# TODO Signatur von color noch global anpassen
+
+
 class Vision:
+    """
+    Vision is the main ROS-node for handling all tasks related to image processing.
+    """
+
     def __init__(self):
         # type () -> None
         """
-        Vision is the main ROS-node for handling all tasks related to image processing.
         Initiating 'bitbots_vision' node.
 
         :return: None
@@ -35,9 +41,9 @@ class Vision:
 
         self.config = {}
 
-        self.debug_image_dings = debug.DebugImage()  # Todo: better variable name
+        self.debug_image_dings = debug.DebugImage()  # TODO: better variable name
         if self.debug_image_dings:
-            self.runtime_evaluator = evaluator.RuntimeEvaluator(None)
+            self.debug_runtime_evaluator = evaluator.RuntimeEvaluator(None)
             
         # Register publisher of 'vision_config'-messages
         self.pub_config = rospy.Publisher(
@@ -79,7 +85,7 @@ class Vision:
         self.obstacle_detector.set_image(image)
         self.line_detector.set_image(image)
 
-        self.runtime_evaluator.set_image()
+        self.debug_runtime_evaluator.set_image()
 
         if (self.config['vision_ball_classifier'] == 'cascade'):
             self.ball_finder.set_image(image)
@@ -228,11 +234,13 @@ class Vision:
         self.line_detector.compute_linepoints()
 
     def _dynamic_reconfigure_callback(self, config, level):
-        #rospy.loginfo("dynamic reconfigure callback")
         self.debug_printer = debug.DebugPrinter(
             debug_classes=debug.DebugPrinter.generate_debug_class_list_from_string(
                 config['vision_debug_printer_classes']))
-        self.runtime_evaluator = evaluator.RuntimeEvaluator(self.debug_printer)
+
+        self.debug_printer.info('Vision dynamic reconfigure callback', 'image')
+        
+        self.debug_runtime_evaluator = evaluator.RuntimeEvaluator(self.debug_printer)
 
         self._ball_candidate_threshold = config['vision_ball_candidate_rating_threshold']
         self._ball_candidate_y_offset = config['vision_ball_candidate_horizon_y_offset']
@@ -251,7 +259,7 @@ class Vision:
             rospy.logwarn('ball FCNN output publishing is disabled')
 
         if config['vision_ball_classifier'] == 'dummy':
-            self.ball_detector = dummy_ballfinder.DummyClassifier(None, None, None)
+            self.ball_detector = dummy_ballfinder.DummyClassifier(self.debug_printer, None, None)
         # color config
         self.white_color_detector = color.HsvSpaceColorDetector(
             self.debug_printer,
@@ -276,32 +284,31 @@ class Vision:
 
         self.field_color_detector = color.PixelListColorDetector(
             self.debug_printer,
-            self.package_path,
             config,
+            self.package_path,
             primary_detector=True)
 
         self.horizon_detector = horizon.HorizonDetector(
+            self.debug_printer,
             self.field_color_detector,
             config,
-            self.debug_printer,
-            self.runtime_evaluator)
+            self.debug_runtime_evaluator)
 
         self.line_detector = lines.LineDetector(
+            self.debug_printer,
             self.white_color_detector,
             self.field_color_detector,
             self.horizon_detector,
-            config,
-            self.debug_printer)
+            config)
 
         self.obstacle_detector = obstacle.ObstacleDetector(
+            self.debug_printer,
             self.red_color_detector,
             self.blue_color_detector,
             self.white_color_detector,
             self.horizon_detector,
-            self.runtime_evaluator,
             config,
-            self.debug_printer
-        )
+            self.debug_runtime_evaluator)
 
         # load cascade
         if config['vision_ball_classifier'] == 'cascade':
@@ -317,12 +324,12 @@ class Vision:
             if 'classifier_model_path' not in self.config or \
                     self.config['classifier_model_path'] != config['classifier_model_path'] or \
                     self.config['vision_ball_classifier'] != config['vision_ball_classifier']:
-                self.ball_classifier = live_classifier.LiveClassifier(
-                    self.package_path + config['classifier_model_path'])
+                self.ball_classifier = live_classifier.LiveClassifier(self.debug_printer,
+                                                                      self.package_path + config['classifier_model_path'])
                 rospy.logwarn(config['vision_ball_classifier'] + " vision is running now")
-            self.ball_detector = classifier.ClassifierHandler(self.ball_classifier, self.debug_printer)
+            self.ball_detector = classifier.ClassifierHandler(self.debug_printer, self.ball_classifier)
 
-            self.ball_finder = ball.BallFinder(self.cascade, config, self.debug_printer)
+            self.ball_finder = ball.BallFinder(self.debug_printer, self.cascade, config)
 
 
         # set up ball config for fcnn
@@ -348,13 +355,13 @@ class Vision:
                 ball_fcnn_path = self.package_path + config['ball_fcnn_model_path']
                 if not os.path.exists(ball_fcnn_path):
                     rospy.logerr('AAAAHHHH! The specified fcnn model file doesn\'t exist!')
-                self.ball_fcnn = live_fcnn_03.FCNN03(ball_fcnn_path, self.debug_printer)
+                self.ball_fcnn = live_fcnn_03.FCNN03(self.debug_printer, ball_fcnn_path)
                 rospy.logwarn(config['vision_ball_classifier'] + " vision is running now")
             self.ball_detector = fcnn_handler.FcnnHandler(
+                self.debug_printer,
                 self.ball_fcnn,
                 self.horizon_detector,
-                self.ball_fcnn_config,
-                self.debug_printer)
+                self.ball_fcnn_config)
 
         # subscribers
         if 'ROS_img_msg_topic' not in self.config or \
@@ -423,3 +430,4 @@ class Vision:
 
 if __name__ == '__main__':
     Vision()
+

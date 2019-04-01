@@ -1,19 +1,20 @@
-import numpy as np
 import cv2
+import numpy as np
 from .candidate import Candidate, CandidateFinder
 from .debug import DebugPrinter
 
 
 class ClassifierHandler(CandidateFinder):
-    def __init__(self, classifier, debug_printer):
-        # type: (LiveClassifier, DebugPrinter) -> None
+
+    def __init__(self, debug_printer, classifier):
+        # type: (DebugPrinter, LiveClassifier) -> None
+        self._debug_printer = debug_printer
+        self._classifier = classifier
         self._image = None
         self._input_candidates = None
-        self._classifier = classifier
         self._classified_candidates = None
         self._sorted_candidates = None
         self._top_candidate = None
-        self._debug_printer = debug_printer
 
     def set_image(self, image, candidates):
         self._image = image
@@ -27,9 +28,10 @@ class ClassifierHandler(CandidateFinder):
             batch = list()
             if self._input_candidates:
                 for item in self._input_candidates:
-                    image_cropped = cv2.resize(self._image[item.get_upper_left_y(): item.get_upper_left_y()+item.get_height(),
-                                               item.get_upper_left_x(): item.get_upper_left_x()+item.get_width()],
-                                               (self._classifier.input_shape[0], self._classifier.input_shape[1]))
+                    image_cropped = cv2.resize(
+                        self._image[item.get_upper_left_y(): item.get_upper_left_y()+item.get_height(),
+                        item.get_upper_left_x(): item.get_upper_left_x()+item.get_width()],
+                        (self._classifier.input_shape[0], self._classifier.input_shape[1]))
                     batch.append(image_cropped.astype(np.float32) / 255.0)
                 # classify whole batch of images
                 batch_conf = self._classifier.predict(batch)

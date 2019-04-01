@@ -1,28 +1,29 @@
+import cv2
+import numpy as np
 from .candidate import CandidateFinder, Candidate
 from .color import ColorDetector
 from .horizon import HorizonDetector
-from .evaluator import RuntimeEvaluator
 from .debug import DebugPrinter
-import cv2
-import numpy as np
+from .evaluator import RuntimeEvaluator
 
 
 class ObstacleDetector(CandidateFinder):
-    def __init__(self, red_color_detector, blue_color_detector, white_color_detector, horizon_detector,
-                 runtime_evaluator, config, debug_printer):
-        # type: (ColorDetector, ColorDetector, ColorDetector, HorizonDetector, RuntimeEvaluator, dict, DebugPrinter) -> None
+    def __init__(self, debug_printer, red_color_detector, blue_color_detector, white_color_detector, 
+                 horizon_detector, config, runtime_evaluator):
+        # type: (DebugPrinter, ColorDetector, ColorDetector, ColorDetector, HorizonDetector, dict, RuntimeEvaluator) -> None
         self._debug_printer = debug_printer
         self._red_color_detector = red_color_detector
         self._blue_color_detector = blue_color_detector
         self._white_color_detector = white_color_detector
         self._horizon_detector = horizon_detector
-        self._runtime_evaluator = runtime_evaluator
         self._color_threshold = config['obstacle_color_threshold']
         self._white_threshold = config['obstacle_white_threshold']
         self._horizon_diff_threshold = config['obstacle_horizon_diff_threshold']
         self._candidate_horizon_offset = config['obstacle_candidate_horizon_offset']
         self._candidate_min_width = config['obstacle_candidate_min_width']
         self._finder_step_length = config['obstacle_finder_step_length']
+        
+        self._runtime_evaluator = runtime_evaluator
 
         self._image = None
         self._blue_mask = None
@@ -245,3 +246,4 @@ class ObstacleDetector(CandidateFinder):
                 continue
             else:
                 self._other_obstacles.append(obstacle)
+

@@ -1,22 +1,25 @@
-import tensorflow as tf
+import os
+import sys
 import numpy as np
-import sys, os
+import tensorflow as tf
 from .debug import DebugPrinter
 
 
 class LiveClassifier(object):
 
-    def __init__(self, load_path, debug_printer):
+    def __init__(self, debug_printer, load_path):
         """
         Constructor
         
+        :param debug_printer: DebugPrinter
         :param load_path: path (str) where data should be loaded from
         """
+        self._debug_printer = debug_printer
+
         if load_path[-1] != "/":
             load_path += "/"
         self.model_load_path = load_path + "model"
         self.load_path = load_path
-        self._debug_printer = debug_printer
 
         self.input_shape = (40, 40, 3)
 
@@ -46,7 +49,6 @@ class LiveClassifier(object):
         return tf.maximum(x, x * leak, name=name)
 
     def model(self, X):
-
         init_op = tf.contrib.layers.xavier_initializer(uniform=True,
                                                        dtype=tf.float32)
 
@@ -85,3 +87,4 @@ class LiveClassifier(object):
                 output = tf.sigmoid(out)
 
         return output, logits
+

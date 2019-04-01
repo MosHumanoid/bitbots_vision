@@ -1,26 +1,26 @@
-
 import sys
+import math
+import cv2
+import numpy as np
 from random import randint
 from .horizon import HorizonDetector
 from .candidate import Candidate
 from .color import ColorDetector
 from .debug import DebugPrinter
-import math
-import numpy as np
-import cv2
 
 
 class LineDetector:
-    def __init__(self, white_detector, field_color_detector, horizon_detector, config, debug_printer):
-        # type: (ColorDetector, ColorDetector, HorizonDetector, dict, DebugPrinter) -> None
+
+    def __init__(self, debug_printer, white_detector, field_color_detector, horizon_detector, config):
+        # type: (DebugPrinter, ColorDetector, ColorDetector, HorizonDetector, dict) -> None
+        self._debug_printer = debug_printer
+        self._white_detector = white_detector
+        self._field_color_detector = field_color_detector
+        self._horizon_detector = horizon_detector
         self._image = None
         self._preprocessed_image = None
         self._linepoints = None
         self._linesegments = None
-        self._white_detector = white_detector
-        self._field_color_detector = field_color_detector
-        self._horizon_detector = horizon_detector
-        self._debug_printer = debug_printer
         # init config
         self._horizon_offset = config['line_detector_horizon_offset']
         self._linepoints_range = config['line_detector_linepoints_range']
@@ -57,7 +57,6 @@ class LineDetector:
         return self._linepoints
 
     def get_linesegments(self):
-
         img = self._white_detector.mask_image(self._get_preprocessed_image())
         lines = cv2.HoughLinesP(img,
                                 1,
@@ -118,3 +117,4 @@ class LineDetector:
         for candidate in candidates:
             filtered_linepoints = [linepoint for linepoint in linepoints if not candidate.point_in_candidate(linepoint)]
         return filtered_linepoints
+

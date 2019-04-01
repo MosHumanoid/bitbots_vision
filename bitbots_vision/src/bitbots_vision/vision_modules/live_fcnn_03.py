@@ -5,9 +5,9 @@ from .debug import DebugPrinter
 
 class FCNN03:
 
-    def __init__(self, load_path, debug_printer):
-        print("setting up ball detection: FCNN03")
+    def __init__(self, debug_printer, load_path):
         self._debug_printer = debug_printer
+        self._debug_printer.info('setting up ball detection: FCNN03', 'fcnn')
 
         self._load_path = os.path.join(load_path, "model_final")
 
@@ -40,13 +40,11 @@ class FCNN03:
         # init network & load weights
         self._initialize_network()
 
-
     def predict(self, batch):
         res = self.session.run(self._fcnn_out,
                                 feed_dict={self.X: batch, self._keep_prob: 1.0})
 
         return res
-
 
     def _initialize_network(self):
         config = tf.ConfigProto()
@@ -59,7 +57,6 @@ class FCNN03:
         print("loading weights from '{}'...".format(self._load_path))
         self.saver.restore(self.session, self._load_path)
         print("loaded successfully.")
-
 
     def _fcnn_model(self):
         with tf.variable_scope("conv", dtype=tf.float32):
@@ -195,5 +192,4 @@ class FCNN03:
                 # 150x200x1
 
         return out, logits
-
 

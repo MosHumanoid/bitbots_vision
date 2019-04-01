@@ -5,6 +5,7 @@ from .candidate import Candidate
 
 
 class DebugImage:
+
     def __init__(self):
         self.raw_image = None
 
@@ -70,6 +71,7 @@ class DebugImage:
 
 
 class DebugPrinter:
+
     def __init__(self, debug_classes=None):
         self._debug_classes = [debug_class.lower() for debug_class in debug_classes]
         self._all = 'all' in debug_classes
@@ -93,7 +95,4 @@ class DebugPrinter:
     @staticmethod
     def generate_debug_class_list_from_string(string):
         return string.replace(' ', '').split(',')
-
-
-
 

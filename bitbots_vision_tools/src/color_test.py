@@ -1,7 +1,7 @@
 #! /usr/bin/env python2
 from dynamic_reconfigure.server import Server
 from bitbots_vision_tools.cfg import ColorTestConfig
-from bitbots_vision.vision_modules import color
+from bitbots_vision.vision_modules import color, debug
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import rospy
@@ -17,6 +17,10 @@ class ColorTest:
         self.package_path = rospack.get_path('bitbots_vision_tools')
         self.use_pixel_list = rospy.get_param(
             'color_test_params/color_detector_implementation/use_PixelListColorDetector')
+
+        self.debug_printer = debug.debug_printer(debug_classes=debug.DebugPrinter.generate_debug_class_list_from_string(
+                ['all']))
+
         # default configuration
         if self.use_pixel_list:
             self.color_detector = color.PixelListColorDetector(
@@ -24,6 +28,7 @@ class ColorTest:
                 rospy.get_param('color_test_params/field_color_detector/path'))
         else:
             self.color_detector = color.HsvSpaceColorDetector(
+
                 rospy.get_param('color_test_params/white_color_detector/lower_values'),
                 rospy.get_param('color_test_params/white_color_detector/upper_values'))
 

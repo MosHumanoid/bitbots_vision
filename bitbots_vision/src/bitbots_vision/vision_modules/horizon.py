@@ -1,25 +1,24 @@
-import numpy as np
 import cv2
 import rospy
-from .color import ColorDetector
+import numpy as np
 from operator import itemgetter
+from .color import ColorDetector
 from .debug import DebugPrinter
 from .evaluator import RuntimeEvaluator
 
 
 class HorizonDetector:
 
-    def __init__(self, field_color_detector, config, debug_printer, runtime_evaluator):
-        # type: (np.matrix, ColorDetector, dict, DebugPrinter, RuntimeEvaluator) -> None
-        self._image = None
+    def __init__(self, debug_printer, field_color_detector, config, runtime_evaluator):
+        # type: (DebugPrinter, ColorDetector, dict, RuntimeEvaluator) -> None
+        self._debug_printer = debug_printer
         self._field_color_detector = field_color_detector
+        self._image = None
         self._horizon_points = None
         self._horizon_full = None
         self._convex_horizon_full = None
         self._horizon_hull = None
         self._mask = None
-        self._debug_printer = debug_printer
-        self._runtime_evaluator = runtime_evaluator
         # init config
         self._x_steps = config['horizon_finder_horizontal_steps']
         self._y_steps = config['horizon_finder_vertical_steps']
@@ -27,6 +26,8 @@ class HorizonDetector:
         self._roi_width = config['horizon_finder_roi_width']
         self._precise_pixel = config['horizon_finder_precision_pix']
         self._min_precise_pixel = config['horizon_finder_min_precision_pix']
+
+        self._runtime_evaluator = runtime_evaluator
 
     def set_image(self, image):
         self._image = image
@@ -368,7 +369,6 @@ class HorizonDetector:
             horizon_points.append((x, firstgreen))
         return horizon_points
 
-
     def _precise_horizon(self):
         # type: () -> list
         """
@@ -522,3 +522,4 @@ class HorizonDetector:
             buffer1 = buffer2
         equalized_points.append(points[-1])
         return equalized_points
+

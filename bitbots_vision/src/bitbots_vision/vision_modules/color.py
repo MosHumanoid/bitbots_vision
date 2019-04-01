@@ -14,12 +14,16 @@ from .debug import DebugPrinter
 
 
 class ColorDetector:
+    """
+    ColorDetector is abstract super-class of specialized sub-classes.
+    ColorDetectors are used e.g. to check, if a pixel matches the defined color space
+    or to create masked binary images.
+    """
+
     def __init__(self, debug_printer):
         # type: (DebugPrinter) -> None
         """
-        ColorDetector is abstract super-class of specialized sub-classes.
-        ColorDetectors are used e.g. to check, if a pixel matches the defined color space
-        or to create masked binary images.
+        Initiate ColorDetector.
 
         :param DebugPrinter debug_printer: debug-printer
         :return: None
@@ -94,11 +98,15 @@ class ColorDetector:
 
 
 class HsvSpaceColorDetector(ColorDetector):
+    """
+    HsvSpaceColorDetector is a ColorDetector, that is based on the HSV-color space.
+    The HSV-color space is adjustable by setting min- and max-values for hue, saturation and value.
+    """
+
     def __init__(self, debug_printer, min_vals, max_vals):
         # type: (DebugPrinter, tuple[int, int, int], tuple[int, int, int]) -> None
         """
-        HsvSpaceColorDetector is a ColorDetector, that is based on the HSV-color space.
-        The HSV-color space is adjustable by setting min- and max-values for hue, saturation and value.
+        Initiate HsvSpaceColorDetector.
 
         :param DebugPrinter debug_printer: debug-printer
         :param tuple min_vals: a tuple of the minimal accepted hsv-values
@@ -130,7 +138,6 @@ class HsvSpaceColorDetector(ColorDetector):
         :return bool: whether pixel is in color space or not
         """
         pixel = self.pixel_bgr2hsv(pixel)
-        # TODO: optimize comparisons
         return (self.max_vals[0] >= pixel[0] >= self.min_vals[0]) and \
                (self.max_vals[1] >= pixel[1] >= self.min_vals[1]) and \
                (self.max_vals[2] >= pixel[2] >= self.min_vals[2])
@@ -147,43 +154,23 @@ class HsvSpaceColorDetector(ColorDetector):
         image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         return cv2.inRange(image, self.min_vals, self.max_vals)
 
-    # do not use this stuff!
-    # def pixel_bgr2hsv(self, bgr_pixel):
-    #     normalized_bgr_pixel = (bgr_pixel[0] / 255,
-    #                             bgr_pixel[1] / 255,
-    #                             bgr_pixel[2] / 255)
-    #     min_bgr = min(normalized_bgr_pixel)
-    #     index_max = max(xrange(len(bgr_pixel)), key=bgr_pixel.__getitem__)
-    #
-    #     # set V
-    #     v = normalized_bgr_pixel[index_max]
-    #     # set S
-    #     s = 0
-    #     if v is not 0:
-    #         s = (v - min_bgr) / float(v)
-    #     # set H
-    #     buf = v - min_bgr
-    #     if index_max is 0:
-    #         h = 120 + 30 * (normalized_bgr_pixel[2] - normalized_bgr_pixel[1]) / buf
-    #     elif index_max is 1:
-    #         h = 60 + 30 * (normalized_bgr_pixel[0] - normalized_bgr_pixel[2]) / buf
-    #     else:
-    #         h = 30 * (normalized_bgr_pixel[1] - normalized_bgr_pixel[0]) / buf
-    #     return tuple((int(h), int(s * 255), int(v * 255)))
-
 
 class PixelListColorDetector(ColorDetector):
-    def __init__(self, debug_printer, package_path, vision_config, primary_detector=False):
+    """
+    PixelListColorDetector is a ColorDetector, that is based on a color space.
+    The color space is initially loaded from color-space-file at color_path (in config)
+    and optionally adjustable to changing color conditions (dynamic color space).
+    The color space is represented by boolean-values for RGB-color-values.
+    """
+
+    def __init__(self, debug_printer, package_path, config, primary_detector=False):
         # type:(DebugPrinter, str, dict, bool) -> None
         """
-        PixelListColorDetector is a ColorDetector, that is based on a color space.
-        The color space is initially loaded from color-space-file at color_path (in config)
-        and optionally adjustable to changing color conditions (dynamic color space).
-        The color space is represented by boolean-values for RGB-color-values.
+        Initiating of PixelListColorDetector.
 
         :param DebugPrinter debug_printer: debug-printer
         :param str package_path: path of package
-        :param dict vision_config: vision config
+        :param dict config: vision config
         :param bool primary_detector: true if is primary color detector
             (only detector held by vision should be True) (Default: False)
         :return: None
@@ -191,26 +178,26 @@ class PixelListColorDetector(ColorDetector):
         ColorDetector.__init__(self, debug_printer)
         self.bridge = CvBridge()
 
-        self.vision_config = vision_config
+        self.config = config
 
         self.primary_detector = primary_detector
 
         # concatenate color-path to file containing the accepted colors of base color space
-        if self.vision_config['vision_use_sim_color']:
-            self.color_path = package_path + self.vision_config['field_color_detector_path_sim']
+        if self.config['vision_use_sim_color']:
+            self.color_path = package_path + self.config['field_color_detector_path_sim']
         else:
-            self.color_path = package_path + self.vision_config['field_color_detector_path']
+            self.color_path = package_path + self.config['field_color_detector_path']
         self.base_color_space = self.init_color_space(self.color_path)
         self.color_space = np.copy(self.base_color_space)
 
         # toggle publishing of mask_img msg
-        self.publish_mask_img_msg = self.vision_config['vision_mask_img_msg']
+        self.publish_mask_img_msg = self.config['vision_mask_img_msg']
         
         # toggle publishing of mask_img_dyn msg with dynamic color space
-        self.publish_mask_img_dyn_msg = self.vision_config['dynamic_color_space_mask_img_dyn_msg']
+        self.publish_mask_img_dyn_msg = self.config['dynamic_color_space_mask_img_dyn_msg']
 
         # toggle use of dynamic color space
-        self.dynamic_color_space_turned_on = self.vision_config['dynamic_color_space']
+        self.dynamic_color_space_turned_on = self.config['dynamic_color_space']
 
         # Subscribe to 'color_space'-messages from DynamicColorSpace
         self.color_space_subscriber = rospy.Subscriber(
@@ -337,3 +324,4 @@ class PixelListColorDetector(ColorDetector):
 
         # Switches the reference to the new color space
         self.color_space = color_space_temp
+

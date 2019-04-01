@@ -1,12 +1,12 @@
 import cv2
+import rospy
+import random
+import itertools
+import numpy as np
+import VisionExtensions
 from cv_bridge import CvBridge
 from humanoid_league_msgs.msg import ImageWithRegionOfInterest
-import VisionExtensions
-import numpy as np
 from .candidate import CandidateFinder, Candidate
-import itertools
-import random
-import rospy
 from .live_fcnn_03 import FCNN03
 from .debug import DebugPrinter
 
@@ -30,16 +30,18 @@ class FcnnHandler(CandidateFinder):
         candidate_refinement_iteration_count: 1
     """
 
-    def __init__(self, fcnn, horizon_detector, config, debug_printer):
-        self._image = None
+    def __init__(self, debug_printer, fcnn, horizon_detector, config):
+        self._debug_printer = debug_printer
         self._fcnn = fcnn
         self._horizon_detector = horizon_detector
+        self._image = None
         self._rated_candidates = None
         self._sorted_rated_candidates = None
         self._top_candidate = None
         self._fcnn_output = None
-        self._debug_printer = debug_printer
+
         self.bridge = CvBridge()
+
         # init config
         self.set_config(config)
 
@@ -147,7 +149,6 @@ class FcnnHandler(CandidateFinder):
         return self._fcnn_output
 
     def _get_raw_candidates_cpp(self):
-
         start = cv2.getTickCount()
         out = self.get_fcnn_output()
         end = cv2.getTickCount()
@@ -276,4 +277,5 @@ class FcnnHandler(CandidateFinder):
         msg.regionOfInterest.height = self.get_fcnn_output().shape[0] - 1 - horizon_top
         msg.regionOfInterest.width = self.get_fcnn_output().shape[1] - 1
         return msg
+
 

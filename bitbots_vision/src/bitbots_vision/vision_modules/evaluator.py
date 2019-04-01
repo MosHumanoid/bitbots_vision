@@ -5,6 +5,7 @@ from .debug import DebugPrinter
 
 
 class RuntimeEvaluator:
+
     def __init__(self, debug_printer, name="Runtime", queue_size=100):
         # type: (DebugPrinter, str, int) -> None
         """
@@ -89,3 +90,4 @@ class RuntimeEvaluator:
         if self.count == self.queue_size - 1:
             avg = np.array(self.queue).mean()  # calculates the average of our measurements
             self._debug_printer.info("{} timer: {}".format(self.name, avg), 'eval')
+

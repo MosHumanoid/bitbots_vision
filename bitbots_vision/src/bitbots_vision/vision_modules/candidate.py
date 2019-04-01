@@ -178,3 +178,4 @@ class CandidateFinder(object):
         :return: the count top candidates
         """
         return self.get_top_candidates()[0] if self.get_top_candidates() else None
+
