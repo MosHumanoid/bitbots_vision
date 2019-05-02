@@ -1,0 +1,19 @@
+# ENUM: 'HsvColorDetector',
+#       'PixelListColorDetector',
+#       'DynamicPixelListColorDetector'
+color_detector: 'HsvColorDetector'
+
+# ROS:
+# Subscriber
+ROS_img_msg_topic: 'image_raw'
+ROS_img_queue_size: 1
+# Publisher
+ball_msg_topic: 'ball_in_image'
+line_msg_topic: 'line_in_image'
+
+# HsvColorDetector:
+HSV_color_detector_lower_values: [0, 0, 0]
+HSV_color_detector_higher_values: [255, 255, 255]
+
+# PixelListColorDetector:
+pixel_list_color_detector_path: '/config/testfield_color01.yaml'

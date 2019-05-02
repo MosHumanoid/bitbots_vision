@@ -1,0 +1,8 @@
+<launch>
+
+<!-- TODO: optionally launch image provider -->
+
+    <rosparam command="load" file="$(find bitbots_vision_tools)/config/color_space_finder_config.yaml" />
+    <node pkg="bitbots_vision_tools" type="color_space_finder.py" name="bitbots_vision_color_space_finder" output="screen" >
+    </node>
+</launch>

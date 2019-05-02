@@ -14,7 +14,7 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## Generate dynamic reconfigure parameters in the 'cfg' folder
 generate_dynamic_reconfigure_options(
-	cfg/color_test.cfg
+	cfg/color_space_finder_config.cfg
 )
 
 catkin_package()
