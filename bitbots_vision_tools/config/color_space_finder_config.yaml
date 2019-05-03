@@ -2,6 +2,7 @@
 #       'PixelListColorDetector',
 #       'DynamicPixelListColorDetector'
 color_detector: 'HsvColorDetector'
+debug_printer_classes: ''
 
 # ROS:
 # Subscriber
@@ -12,8 +13,12 @@ ball_msg_topic: 'ball_in_image'
 line_msg_topic: 'line_in_image'
 
 # HsvColorDetector:
-HSV_color_detector_lower_values: [0, 0, 0]
-HSV_color_detector_higher_values: [255, 255, 255]
+HSV_lower_values_h: 0)
+HSV_lower_values_s: 0)
+HSV_lower_values_v: 0)
+HSV_upper_values_h: 255)
+HSV_upper_values_s: 255)
+HSV_upper_values_v: 255)
 
 # PixelListColorDetector:
-pixel_list_color_detector_path: '/config/testfield_color01.yaml'
+pixel_list_color_space_path: '/config/testfield_color01.yaml'
