@@ -15,7 +15,7 @@ from humanoid_league_msgs.msg import BallInImage, BallsInImage, LineInformationI
     GoalInImage
 from bitbots_vision.vision_modules import lines, horizon, color, debug, live_classifier, \
     classifier, ball, fcnn_handler, live_fcnn_03, dummy_ballfinder, obstacle, evaluator, \
-    body_mask_ball_candidate_filter
+    ball_candidate_body_mask_filter
 from bitbots_vision.cfg import VisionConfig
 from bitbots_msgs.msg import Config
 
@@ -117,14 +117,13 @@ class Vision:
 
         # check whether ball candidates are false positives of the own body (e.g. arms, foots, ...)
         # TODO: logwarn if active or not...
-        if self.config['vision_ball_body_mask_active']:
+        if self.config['vision_ball_candidate_body_mask_filter_active']:
             shape = np.shape(image)
             image_size = (shape[0], shape[1])
-            balls_not_on_own_body = self.body_mask_ball_candidate_filter.get_ball_candidates_not_on_own_body([], image_size)
             if top_ball_candidate:
                 balls = []
                 balls.append(top_ball_candidate)
-                balls_not_on_own_body = self.body_mask_ball_candidate_filter.get_ball_candidates_not_on_own_body(balls, image_size)
+                balls_not_on_own_body = self.ball_candidate_body_mask_filter.get_ball_candidates_not_on_own_body(balls, image_size)
                 if balls_not_on_own_body:
                     top_ball_candidate = balls_not_on_own_body[0]
                 else:
@@ -309,7 +308,7 @@ class Vision:
         if config['vision_ball_classifier'] == 'dummy':
             self.ball_detector = dummy_ballfinder.DummyClassifier(None, None, self.debug_printer)
         
-        self.body_mask_ball_candidate_filter = body_mask_ball_candidate_filter.BodyMaskBallCandidateFilter(
+        self.ball_candidate_body_mask_filter = ball_candidate_body_mask_filter.BallCandidateBodyMaskFilter(
             self.debug_printer,
             config)
 

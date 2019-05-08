@@ -1,22 +1,20 @@
 #!/usr/bin/env python2
 # TODO: remove
 
-import rospy
-import math
-import numpy as np
 import cv2
-from bitbots_vision.vision_modules import debug, ball, candidate
-from sensor_msgs.msg import CameraInfo
+import math
+import rospy
+import numpy as np
 import tf2_ros as tf2
-from tf2_geometry_msgs import PointStamped
 from geometry_msgs.msg import Point
+from tf2_geometry_msgs import PointStamped
+from sensor_msgs.msg import CameraInfo
+from bitbots_vision.vision_modules import debug, ball, candidate
 
     # TODO: docs
-    # TODO: set resolution on transformer stuff
     # TODO: publish debug image as overlay of body mask with 0.5 opacity
-    # TODO: rename class to BallCandidateBodyMaskFilter
 
-class BodyMaskBallCandidateFilter(object):
+class BallCandidateBodyMaskFilter(object):
     """
     TODO
     """
@@ -27,7 +25,7 @@ class BodyMaskBallCandidateFilter(object):
         """
         self.max_intersection_threshold = config['vision_ball_own_body_max_intersection_threshold']
         self.finder = BodyMaskObjectFinder()
-        # To accommodate termination issues
+        # To accommodate termination issues # TODO: remove
         """
         while not rospy.is_shutdown():
             self.test()
@@ -35,16 +33,16 @@ class BodyMaskBallCandidateFilter(object):
         # rospy.spin()
 
     def get_body_parts(self, image_size):
-        # type: () -> [(int, int), (int, int), int]
+        # type: ((int, int)) -> [(int, int), (int, int), int]
         """
         TODO
         """
-        self.finder.set_resolution(image_size[1],image_size[0])
+        self.finder.set_resolution(image_size[1], image_size[0])
         
         return self.finder.work()
 
     def get_body_mask(self, body_parts, image_size):
-        # type: ([(int, int), (int, int), int]) -> TODO
+        # type: ([(int, int), (int, int), int], (int, int)) -> TODO
         """
         TODO
         """
@@ -56,13 +54,8 @@ class BodyMaskBallCandidateFilter(object):
         self.imshow(mask)
         return mask
 
-    # TODO: remove
-    def test(self):
-        objects = self.get_body_parts()
-        self.imshow(self.get_body_mask(objects))
-    
     def get_ball_mask(self, ball_candidate, image_size):
-        # type: () -> TODO
+        # type: (TODO, (int, int)) -> TODO
         """
         TODO
         """
@@ -74,13 +67,8 @@ class BodyMaskBallCandidateFilter(object):
         mask = cv2.circle(canvas, center, radius, (255, 255, 255), thickness=-1)
         return mask
 
-    # TODO: remove
-    def imshow(self, image):
-        cv2.imshow("image", image)
-        k = cv2.waitKey(1)
-
     def ball_candidate_not_on_own_body(self, ball_candidate, body_mask, image_size):
-        # type: () -> bool
+        # type: (TODO, TODO, (int, int)) -> bool
         """
         TODO
         """
@@ -97,7 +85,7 @@ class BodyMaskBallCandidateFilter(object):
         return (intersection_area / ball_area) <= self.max_intersection_threshold
 
     def get_ball_candidates_not_on_own_body(self, ball_candidates, image_size):
-        # type: (TODO) -> TODO
+        # type: (TODO, (int, int)) -> TODO
         """
         TODO
         """
@@ -107,6 +95,16 @@ class BodyMaskBallCandidateFilter(object):
             ball_candidate,
             body_mask,
             image_size)]
+    
+    # TODO: remove
+    def test(self):
+        objects = self.get_body_parts()
+        self.imshow(self.get_body_mask(objects))
+        
+    # TODO: remove
+    def imshow(self, image):
+        cv2.imshow("image", image)
+        k = cv2.waitKey(1)
 
 
 class BodyMaskObjectFinder(object):
@@ -210,6 +208,7 @@ class BodyMaskObjectFinder(object):
         return int(math.degrees(angle[1]) * scalar_x), int(math.degrees(angle[0]) * scalar_y)
 
 
+# TODO: remove
 if __name__ == "__main__":
     #rospy.init_node('body_mask')
-    body_mask_ball_candidate_filter((360, 640))
+    BallCandidateBodyMaskFilter((360, 640))

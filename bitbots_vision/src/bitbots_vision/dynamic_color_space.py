@@ -8,6 +8,7 @@ import rospkg
 import numpy as np
 from cv_bridge import CvBridge
 from collections import deque
+# TODO needed?
 from dynamic_reconfigure.server import Server
 from dynamic_reconfigure.client import Client
 from sensor_msgs.msg import Image
