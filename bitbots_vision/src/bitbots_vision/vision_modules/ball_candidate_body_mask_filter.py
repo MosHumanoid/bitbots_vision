@@ -23,8 +23,8 @@ class BallCandidateBodyMaskFilter(object):
         """
         TODO
         """
-        self.max_intersection_threshold = config['vision_ball_own_body_max_intersection_threshold']
-        self.finder = BodyMaskObjectFinder()
+        self.max_intersection_threshold = config['ball_candidate_body_mask_filter_max_intersection_threshold']
+        self.finder = BodyMaskObjectFinder(config)
         # To accommodate termination issues # TODO: remove
         """
         while not rospy.is_shutdown():
@@ -108,8 +108,15 @@ class BallCandidateBodyMaskFilter(object):
 
 
 class BodyMaskObjectFinder(object):
-    def __init__(self):
-        self.rate = 30
+    def __init__(self, config):
+        # type: (dict) -> None
+        """
+        Initiating BodyMaskObjectFinder.
+
+        :param dict config: Vision config
+        :return: None
+        """
+        self.rate = config['ball_candidate_body_mask_filter_rate']
         self.arm_width = 0.05
         self.vertical_fov = 70
         self.horizontal_fov = int(70 * 1.7)
@@ -124,13 +131,13 @@ class BodyMaskObjectFinder(object):
                         self._callback_camera_info,
                         queue_size=1)
 
-    def _callback_camera_info(self, camera_info):
-        self.camera_info = camera_info
-        self.calculate_fov()
+    def set_resolution(self, x, y):
+        self.x_resolution = x
+        self.y_resolution = y
 
     def calculate_fov(self):
         K = self.camera_info.K
-        
+
         point = Point()
         point.x = (self.x_resolution - K[2]) / K[0]
         point.y = (self.y_resolution- K[5]) / K[4]
@@ -141,9 +148,9 @@ class BodyMaskObjectFinder(object):
         self.horizontal_fov = int(math.degrees(angles[1]*2))
         self.vertical_fov = int(math.degrees(angles[0]*2))
 
-    def set_resolution(self, x, y):
-        self.x_resolution = x
-        self.y_resolution = y
+    def _callback_camera_info(self, camera_info):
+        self.camera_info = camera_info
+        self.calculate_fov()
 
     def start(self):
         self.main_loop()
