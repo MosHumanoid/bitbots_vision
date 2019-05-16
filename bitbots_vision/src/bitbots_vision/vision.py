@@ -10,8 +10,9 @@ from cv_bridge import CvBridge
 from dynamic_reconfigure.server import Server
 from sensor_msgs.msg import Image
 from humanoid_league_msgs.msg import BallInImage, BallsInImage, LineInformationInImage, \
-    LineSegmentInImage, ObstaclesInImage, ObstacleInImage, ImageWithRegionOfInterest
-from bitbots_vision.vision_modules import lines, horizon, color, debug, live_classifier, \
+    LineSegmentInImage, ObstaclesInImage, ObstacleInImage, ImageWithRegionOfInterest, GoalPartsInImage, PostInImage, \
+    GoalInImage
+from bitbots_vision.vision_modules import lines, field_boundary, color, debug, live_classifier, \
     classifier, ball, fcnn_handler, live_fcnn_03, dummy_ballfinder, obstacle, evaluator
 from bitbots_vision.cfg import VisionConfig
 from bitbots_msgs.msg import Config
@@ -38,8 +39,9 @@ class Vision:
         self.debug_image_dings = debug.DebugImage()  # Todo: better variable name
         if self.debug_image_dings:
             self.runtime_evaluator = evaluator.RuntimeEvaluator(None)
-            
+
         # Register publisher of 'vision_config'-messages
+        # For changes of topic name: also change topic name in dynamic_color_space.py
         self.pub_config = rospy.Publisher(
             'vision_config',
             Config,
@@ -75,7 +77,7 @@ class Vision:
         image = self.bridge.imgmsg_to_cv2(image_msg, 'bgr8')
 
         # setup detectors
-        self.horizon_detector.set_image(image)
+        self.field_boundary_detector.set_image(image)
         self.obstacle_detector.set_image(image)
         self.line_detector.set_image(image)
 
@@ -84,7 +86,7 @@ class Vision:
         self.ball_detector.set_image(image)
 
         if self.config['vision_parallelize']:
-            self.horizon_detector.compute_all()  # computes stuff which is needed later in the processing
+            self.field_boundary_detector.compute_all()  # computes stuff which is needed later in the processing
             fcnn_thread = threading.Thread(target=self.ball_detector.compute_top_candidate)
             conventional_thread = threading.Thread(target=self._conventional_precalculation())
 
@@ -97,10 +99,38 @@ class Vision:
             self.ball_detector.compute_top_candidate()
             self._conventional_precalculation()
 
-        top_ball_candidate = self.ball_detector.get_top_candidate()
+        # TODO: handle all ball candidates
 
-        # create ball msg
+        #"""
+        ball_candidates = self.ball_detector.get_candidates()
+
+        if ball_candidates:
+            balls_under_field_boundary = self.field_boundary_detector.balls_under_field_boundary(ball_candidates)
+            if balls_under_field_boundary:
+                sorted_rated_candidates = sorted(balls_under_field_boundary, key=lambda x: x.rating)
+                top_ball_candidate = list([max(sorted_rated_candidates[0:1], key=lambda x: x.rating)])[0]
+            else:
+                top_ball_candidate = None
+        else:
+            top_ball_candidate = None
+        """
+        # check whether ball candidates are under the field_boundary
+        # TODO: handle multiple ball candidates
+        top_ball_candidate = self.ball_detector.get_top_candidate()
+        if top_ball_candidate:
+            ball = []
+            ball.append(top_ball_candidate)
+            ball_under_field_boundary = self.field_boundary_detector.balls_under_field_boundary(ball)
+            if ball_under_field_boundary:
+                top_ball_candidate = ball_under_field_boundary[0]
+            else:
+                top_ball_candidate = None
+        #"""
+
+        # check whether ball candidates are over rating threshold
         if top_ball_candidate and top_ball_candidate.rating > self._ball_candidate_threshold:
+            # create ball msg
+            # TODO: publish empty msg if no top candidate as described in msg description
             balls_msg = BallsInImage()
             balls_msg.header.frame_id = image_msg.header.frame_id
             balls_msg.header.stamp = image_msg.header.stamp
@@ -114,6 +144,11 @@ class Vision:
             balls_msg.candidates.append(ball_msg)
             self.debug_printer.info('found a ball! \o/', 'ball')
             self.pub_balls.publish(balls_msg)
+
+        # create goalpost msg
+        goal_parts_msg = GoalPartsInImage()
+        goal_parts_msg.header.frame_id = image_msg.header.frame_id
+        goal_parts_msg.header.stamp = image_msg.header.stamp
 
         # create obstacle msg
         obstacles_msg = ObstaclesInImage()
@@ -139,6 +174,14 @@ class Vision:
             obstacle_msg.confidence = 1.0
             obstacle_msg.playerNumber = 42
             obstacles_msg.obstacles.append(obstacle_msg)
+        for white_obs in self.obstacle_detector.get_white_obstacles():
+            post_msg = PostInImage()
+            post_msg.width = white_obs.get_width()
+            post_msg.confidence = 1.0
+            post_msg.foot_point.x = white_obs.get_center_x()
+            post_msg.foot_point.y = white_obs.get_lower_right_y()
+            post_msg.top_point = post_msg.foot_point
+            goal_parts_msg.posts.append(post_msg)
         for other_obs in self.obstacle_detector.get_other_obstacles():
             obstacle_msg = ObstacleInImage()
             obstacle_msg.color = ObstacleInImage.UNDEFINED
@@ -149,6 +192,25 @@ class Vision:
             obstacle_msg.confidence = 1.0
             obstacles_msg.obstacles.append(obstacle_msg)
         self.pub_obstacle.publish(obstacles_msg)
+
+        goal_msg = GoalInImage()
+        goal_msg.header = goal_parts_msg.header
+        left_post = PostInImage()
+        left_post.foot_point.x = 9999999999
+        left_post.confidence = 1.0
+        right_post = PostInImage()
+        right_post.foot_point.x = -9999999999
+        right_post.confidence = 1.0
+        for post in goal_parts_msg.posts:
+            if post.foot_point.x < left_post.foot_point.x:
+                left_post = post
+            if post.foot_point.x > right_post.foot_point.x:
+                right_post = post
+        goal_msg.left_post = left_post
+        goal_msg.right_post = right_post
+        goal_msg.confidence = 1.0
+        if goal_parts_msg.posts:
+            self.pub_goal.publish(goal_msg)
 
         # create line msg
         line_msg = LineInformationInImage()  # Todo: add lines
@@ -190,14 +252,14 @@ class Vision:
                 (255, 255, 255),
                 thickness=3
             )
-            self.debug_image_dings.draw_horizon(
-                self.horizon_detector.get_horizon_points(),
+            self.debug_image_dings.draw_field_boundary(
+                self.field_boundary_detector.get_field_boundary_points(),
                 (0, 0, 255))
             self.debug_image_dings.draw_ball_candidates(
                 self.ball_detector.get_candidates(),
                 (0, 0, 255))
             self.debug_image_dings.draw_ball_candidates(
-                self.horizon_detector.balls_under_horizon(
+                self.field_boundary_detector.balls_under_field_boundary(
                     self.ball_detector.get_candidates(),
                     self._ball_candidate_y_offset),
                 (0, 255, 255))
@@ -226,10 +288,10 @@ class Vision:
         self.runtime_evaluator = evaluator.RuntimeEvaluator(self.debug_printer)
 
         self._ball_candidate_threshold = config['vision_ball_candidate_rating_threshold']
-        self._ball_candidate_y_offset = config['vision_ball_candidate_horizon_y_offset']
+        self._ball_candidate_y_offset = config['vision_ball_candidate_field_boundary_y_offset']
 
         self.debug_image = config['vision_debug_image']
-        self.debug_image_msg = config['vision_debug_image_msg']
+        self.debug_image_msg = config['vision_publish_debug_image']
         self.debug = self.debug_image or self.debug_image_msg
         if self.debug:
             rospy.logwarn('Debug images are enabled')
@@ -242,8 +304,16 @@ class Vision:
             rospy.logwarn('ball FCNN output publishing is disabled')
 
         if config['vision_ball_classifier'] == 'dummy':
-            self.ball_detector = dummy_ballfinder.DummyClassifier(None, None, None)
-        # color config
+            self.ball_detector = dummy_ballfinder.DummyClassifier(None, None, self.debug_printer)
+
+        # Print status of color config
+        if 'vision_use_sim_color' not in self.config or \
+            config['vision_use_sim_color'] != self.config['vision_use_sim_color']:
+            if config['vision_use_sim_color']:
+                rospy.logwarn('Loaded color space for SIMULATOR.')
+            else:
+                rospy.loginfo('Loaded color space for REAL WORLD.')
+
         self.white_color_detector = color.HsvSpaceColorDetector(
             self.debug_printer,
             [config['white_color_detector_lower_values_h'], config['white_color_detector_lower_values_s'],
@@ -265,13 +335,19 @@ class Vision:
             [config['blue_color_detector_upper_values_h'], config['blue_color_detector_upper_values_s'],
              config['blue_color_detector_upper_values_v']])
 
-        self.field_color_detector = color.PixelListColorDetector(
-            self.debug_printer,
-            self.package_path,
-            config,
-            primary_detector=True)
+        if config['dynamic_color_space_active']:
+            self.field_color_detector = color.DynamicPixelListColorDetector(
+                self.debug_printer,
+                self.package_path,
+                config,
+                primary_detector=True)
+        else:
+            self.field_color_detector = color.PixelListColorDetector(
+                self.debug_printer,
+                self.package_path,
+                config)
 
-        self.horizon_detector = horizon.HorizonDetector(
+        self.field_boundary_detector = field_boundary.FieldBoundaryDetector(
             self.field_color_detector,
             config,
             self.debug_printer,
@@ -280,7 +356,7 @@ class Vision:
         self.line_detector = lines.LineDetector(
             self.white_color_detector,
             self.field_color_detector,
-            self.horizon_detector,
+            self.field_boundary_detector,
             config,
             self.debug_printer)
 
@@ -288,7 +364,7 @@ class Vision:
             self.red_color_detector,
             self.blue_color_detector,
             self.white_color_detector,
-            self.horizon_detector,
+            self.field_boundary_detector,
             self.runtime_evaluator,
             config,
             self.debug_printer
@@ -328,7 +404,7 @@ class Vision:
             'min_candidate_diameter': config['ball_fcnn_min_ball_diameter'],
             'max_candidate_diameter': config['ball_fcnn_max_ball_diameter'],
             'candidate_refinement_iteration_count': config['ball_fcnn_candidate_refinement_iteration_count'],
-            'publish_horizon_offset': config['ball_fcnn_publish_horizon_offset'],
+            'publish_field_boundary_offset': config['ball_fcnn_publish_field_boundary_offset'],
         }
 
         # load fcnn
@@ -343,25 +419,13 @@ class Vision:
                 rospy.logwarn(config['vision_ball_classifier'] + " vision is running now")
             self.ball_detector = fcnn_handler.FcnnHandler(
                 self.ball_fcnn,
-                self.horizon_detector,
+                self.field_boundary_detector,
                 self.ball_fcnn_config,
                 self.debug_printer)
 
-        # subscribers
-        if 'ROS_img_msg_topic' not in self.config or \
-                self.config['ROS_img_msg_topic'] != config['ROS_img_msg_topic']:
-            if hasattr(self, 'image_sub'):
-                self.image_sub.unregister()
-            self.image_sub = rospy.Subscriber(
-                config['ROS_img_msg_topic'],
-                Image,
-                self._image_callback,
-                queue_size=config['ROS_img_queue_size'],
-                tcp_nodelay=True,
-                buff_size=60000000)
-            # https://github.com/ros/ros_comm/issues/536
-
         # publishers
+
+        # TODO: topic: ball_in_... BUT MSG TYPE: balls_in_img... CHANGE TOPIC TYPE!
         if 'ROS_ball_msg_topic' not in self.config or \
                 self.config['ROS_ball_msg_topic'] != config['ROS_ball_msg_topic']:
             if hasattr(self, 'pub_balls'):
@@ -389,6 +453,15 @@ class Vision:
                 ObstaclesInImage,
                 queue_size=3)
 
+        if 'ROS_goal_msg_topic' not in self.config or \
+                self.config['ROS_goal_msg_topic'] != config['ROS_goal_msg_topic']:
+            if hasattr(self, 'pub_goal'):
+                self.pub_goal.unregister()
+            self.pub_goal = rospy.Publisher(
+                config['ROS_goal_msg_topic'],
+                GoalInImage,
+                queue_size=3)
+
         if 'ROS_fcnn_img_msg_topic' not in self.config or \
                 self.config['ROS_fcnn_img_msg_topic'] != config['ROS_fcnn_img_msg_topic']:
             if hasattr(self, 'pub_ball_fcnn'):
@@ -398,11 +471,28 @@ class Vision:
                 ImageWithRegionOfInterest,
                 queue_size=1)
 
-        self.pub_debug_image = rospy.Publisher(
-            'debug_image',
-            Image,
-            queue_size=1,
-        )
+        if 'ROS_debug_image_msg_topic' not in self.config or \
+                self.config['ROS_debug_image_msg_topic'] != config['ROS_debug_image_msg_topic']:
+            if hasattr(self, 'pub_debug_image'):
+                self.pub_debug_image.unregister()
+            self.pub_debug_image = rospy.Publisher(
+                config['ROS_debug_image_msg_topic'],
+                Image,
+                queue_size=1)
+
+        # subscribers
+        if 'ROS_img_msg_topic' not in self.config or \
+                self.config['ROS_img_msg_topic'] != config['ROS_img_msg_topic']:
+            if hasattr(self, 'image_sub'):
+                self.image_sub.unregister()
+            self.image_sub = rospy.Subscriber(
+                config['ROS_img_msg_topic'],
+                Image,
+                self._image_callback,
+                queue_size=config['ROS_img_queue_size'],
+                tcp_nodelay=True,
+                buff_size=60000000)
+            # https://github.com/ros/ros_comm/issues/536
 
         # Publish Config-message
         msg = Config()
