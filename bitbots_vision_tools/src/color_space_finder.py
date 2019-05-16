@@ -18,6 +18,7 @@ from bitbots_vision_tools.cfg import ColorSpaceFinderConfig
 # TODO: Color.py loading color space -> debug printer
 # TODO: decide which detector to use (-> debug printing)
 # TODO: docs
+# TODO: publish mask
 
 class ColorSpaceFinder:
     """
@@ -63,8 +64,7 @@ class ColorSpaceFinder:
         self.color_detector = color.PixelListColorDetector(
             self.debug_printer,
             self.package_path,
-            config,
-            primary_detector=True)
+            config)
 
         self.color_detector = color.HsvSpaceColorDetector(
             self.debug_printer,
