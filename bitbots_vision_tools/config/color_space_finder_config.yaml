@@ -1,6 +1,6 @@
-# ENUM: 'HsvColorDetector',
-#       'PixelListColorDetector',
-#       'DynamicPixelListColorDetector'
+# Choose from 'HsvColorDetector',
+#             'PixelListColorDetector',
+#             'DynamicPixelListColorDetector'
 color_detector: 'HsvColorDetector'
 debug_printer_classes: ''
 
@@ -8,10 +8,13 @@ debug_printer_classes: ''
 # Subscriber
 ROS_img_msg_topic: 'image_raw'
 ROS_img_queue_size: 1
-# Publisher
-ball_msg_topic: 'ball_in_image'
-line_msg_topic: 'line_in_image'
 
+# Publisher
+ROS_field_mask_image_msg_topic: 'field_mask'
+ROS_dynamic_color_space_field_mask_image_msg_topic: 'dynamic_field_mask'
+ROS_dynamic_color_space_msg_topic: 'dynamic_color_space'
+
+# COLOR DETECTORS
 # HsvColorDetector:
 HSV_lower_values_h: 0)
 HSV_lower_values_s: 0)
@@ -21,4 +24,10 @@ HSV_upper_values_s: 255)
 HSV_upper_values_v: 255)
 
 # PixelListColorDetector:
-pixel_list_color_space_path: '/config/testfield_color01.yaml'
+field_color_detector_path: /config/color_spaces/f031_lightcontrol_interpolated.yaml
+field_color_detector_path_sim: /config/color_spaces/GO2019_interpolated.txt
+vision_use_sim_color: false
+vision_publish_field_mask_image: true
+
+# DynamicPixelListColorDetector:
+dynamic_color_space_publish_field_mask_image: true
