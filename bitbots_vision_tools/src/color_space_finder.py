@@ -10,8 +10,6 @@ from dynamic_reconfigure.server import Server
 from bitbots_vision.vision_modules import color, debug
 from bitbots_vision_tools.cfg import ColorSpaceFinderConfig
 
-# TODO: rename ColorTest to ColorSpaceFinder
-# TODO: launch: optional parameter for starting image provider
 # TODO: refactor dyn rec callback
 # TODO: handle dynamic color detector
 # TODO: Vision.py handle not existing color space file
