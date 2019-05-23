@@ -101,6 +101,7 @@ class Vision:
 
         # TODO: handle all ball candidates
 
+        # TODO: this was a fix for the german open and may have to be reevaluated:
         #"""
         ball_candidates = self.ball_detector.get_candidates()
 
@@ -217,11 +218,15 @@ class Vision:
         line_msg.header.frame_id = image_msg.header.frame_id
         line_msg.header.stamp = image_msg.header.stamp
         for lp in self.line_detector.get_linepoints():
-            ls = LineSegmentInImage()
-            ls.start.x = lp[0]
-            ls.start.y = lp[1]
-            ls.end = ls.start
-            line_msg.segments.append(ls)
+            # filter all the line points that are found in the ball:
+            if top_ball_candidate and top_ball_candidate.point_in_candidate(lp):
+                pass
+            else:
+                ls = LineSegmentInImage()
+                ls.start.x = lp[0]
+                ls.start.y = lp[1]
+                ls.end = ls.start
+                line_msg.segments.append(ls)
         self.pub_lines.publish(line_msg)
 
         # create non_line msg
@@ -279,8 +284,16 @@ class Vision:
             self.debug_image_dings.draw_ball_candidates([top_ball_candidate],
                                                         (0, 255, 0))
             # draw linepoints in red
+            filtered_line_points = []
+            line_points = self.line_detector.get_linepoints()
+            # filters the line points that are part of the ball
+            for lp in line_points:
+                if top_ball_candidate and top_ball_candidate.point_in_candidate(lp):
+                    pass
+                else:
+                    filtered_line_points.append(lp)
             self.debug_image_dings.draw_points(
-                self.line_detector.get_linepoints(),
+                filtered_line_points,
                 (0, 0, 255))
             # draw nonlinepoints in black
             self.debug_image_dings.draw_points(
