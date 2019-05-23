@@ -10,13 +10,11 @@ from dynamic_reconfigure.server import Server
 from bitbots_vision.vision_modules import color, debug
 from bitbots_vision_tools.cfg import ColorSpaceFinderConfig
 
-# TODO: refactor dyn rec callback
-# TODO: handle dynamic color detector
 # TODO: Vision.py handle not existing color space file
 # TODO: Color.py loading color space -> debug printer
-# TODO: decide which detector to use (-> debug printing)
 # TODO: docs
 # TODO: publish mask
+# TODO: update dependancies and check rosdep
 
 class ColorSpaceFinder:
     """
@@ -58,24 +56,38 @@ class ColorSpaceFinder:
             debug_classes=debug.DebugPrinter.generate_debug_class_list_from_string(
                 config['debug_printer_classes']))
 
-        # TODO: get vision parameter
-        self.color_detector = color.PixelListColorDetector(
-            self.debug_printer,
-            self.package_path,
-            config)
+        if self.changed_config_param(config, 'color_detector'):
+            if config['color_detector'] == 'HsvColorDetector':
+                self.color_detector = color.HsvSpaceColorDetector(
+                    self.debug_printer,
+                    [config['HSV_lower_values_h'],
+                    config['HSV_lower_values_s'],
+                    config['HSV_lower_values_v']],
+                    [config['HSV_upper_values_h'],
+                    config['HSV_upper_values_s'],
+                    config['HSV_upper_values_v']])
+                rospy.loginfo('Loaded HSV color detector.')
 
-        self.color_detector = color.HsvSpaceColorDetector(
-            self.debug_printer,
-            [config['HSV_lower_values_h'],
-             config['HSV_lower_values_s'],
-             config['HSV_lower_values_v']],
-            [config['HSV_upper_values_h'],
-             config['HSV_upper_values_s'],
-             config['HSV_upper_values_v']])
+            elif self.config['color_detector'] == 'PixelListColorDetector':
+                color_detector = color.PixelListColorDetector(
+                    self.debug_printer,
+                    self.package_path,
+                    config)
+                rospy.loginfo('Loaded pixel list color detector.')
+            
+            elif self.config['color_detector'] == 'DynamicPixelListColorDetector':
+                color_detector = color.PixelListColorDetector(
+                    self.debug_printer,
+                    self.package_path,
+                    config,
+                    primary_detector=True)
+                rospy.loginfo('Loaded dynamic pixel list color detector.')
+
+            else:
+                rospy.logwarn('Unknown color detector selected!')
 
         # subscribers
-        if 'ROS_img_msg_topic' not in self.config or \
-                self.config['ROS_img_msg_topic'] != config['ROS_img_msg_topic']:
+        if self.changed_config_param(config, 'ROS_img_msg_topic'):
             if hasattr(self, 'image_sub'):
                 self.image_sub.unregister()
             self.image_sub = rospy.Subscriber(
@@ -90,20 +102,30 @@ class ColorSpaceFinder:
         self.config = config
         return config
 
-
     def _image_callback(self, img):
+        # type: (TODO) -> None
+        """
+        TODO: docs
+        """
         self.handle_image(img)
 
     def handle_image(self, image_msg):
+        # type: (TODO) -> None
+        """
+        TODO: docs
+        """
         # converting the ROS image message to CV2-image
         image = self.bridge.imgmsg_to_cv2(image_msg, "bgr8")
 
         # mask image
-        mask_img = self.color_detector.mask_image(image)
+        self.color_detector.mask_image(image)
 
-        # output masked image
-        cv2.imshow('Debug Image', mask_img)
-        cv2.waitKey(1)
+    def changed_config_param(self, config, param_name):
+        # type: (dict, str) -> bool
+        """
+        TODO
+        """
+        return param_name not in self.config or config[param_name] != self.config[param_name]
 
 if __name__ == "__main__":
     ColorSpaceFinder()
