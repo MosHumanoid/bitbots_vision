@@ -201,6 +201,7 @@ class Vision:
 
         if self.ball_fcnn_publish_output and self.config['vision_ball_classifier'] == 'fcnn':
             self.pub_ball_fcnn.publish(self.ball_detector.get_ball_debug_msg())
+            self.pub_goalpost_fcnn.publish(self.ball_detector.get_goalpost_debug_msg())
 
         # do debug stuff
         if self.debug:
@@ -435,12 +436,21 @@ class Vision:
                 GoalInImage,
                 queue_size=3)
 
-        if 'ROS_fcnn_img_msg_topic' not in self.config or \
-                self.config['ROS_fcnn_img_msg_topic'] != config['ROS_fcnn_img_msg_topic']:
+        if 'ROS_fcnn_ball_img_msg_topic' not in self.config or \
+                self.config['ROS_fcnn_ball_img_msg_topic'] != config['ROS_fcnn_ball_img_msg_topic']:
             if hasattr(self, 'pub_ball_fcnn'):
                 self.pub_ball_fcnn.unregister()
             self.pub_ball_fcnn = rospy.Publisher(
-                config['ROS_fcnn_img_msg_topic'],
+                config['ROS_fcnn_ball_img_msg_topic'],
+                Image,
+                queue_size=1)
+
+        if 'ROS_fcnn_goalpost_img_msg_topic' not in self.config or \
+                self.config['ROS_fcnn_goalpost_img_msg_topic'] != config['ROS_fcnn_goalpost_img_msg_topic']:
+            if hasattr(self, 'pub_goalpost_fcnn'):
+                self.pub_goalpost_fcnn.unregister()
+            self.pub_goalpost_fcnn = rospy.Publisher(
+                config['ROS_fcnn_goalpost_img_msg_topic'],
                 Image,
                 queue_size=1)
 
