@@ -83,6 +83,7 @@ class Vision:
 
         self.runtime_evaluator.set_image()
 
+        # TODO rename ball detector
         self.ball_detector.set_image(image)
 
         if self.config['vision_parallelize']:
@@ -199,9 +200,7 @@ class Vision:
         self.pub_lines.publish(line_msg)
 
         if self.ball_fcnn_publish_output and self.config['vision_ball_classifier'] == 'fcnn':
-            fcnn_image_msg = self.ball_detector.get_cropped_msg()
-            fcnn_image_msg.header.stamp = image_msg.header.stamp
-            self.pub_ball_fcnn.publish(self.ball_detector.get_cropped_msg())
+            self.pub_ball_fcnn.publish(self.ball_detector.get_ball_debug_msg())
 
         # do debug stuff
         if self.debug:
@@ -442,7 +441,7 @@ class Vision:
                 self.pub_ball_fcnn.unregister()
             self.pub_ball_fcnn = rospy.Publisher(
                 config['ROS_fcnn_img_msg_topic'],
-                ImageWithRegionOfInterest,
+                Image,
                 queue_size=1)
 
         if 'ROS_debug_image_msg_topic' not in self.config or \

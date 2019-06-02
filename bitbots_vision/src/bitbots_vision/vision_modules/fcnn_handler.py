@@ -75,7 +75,7 @@ class FcnnHandler(CandidateFinder):
         if self._rated_candidates is None:
             self._rated_candidates = list()
             for candidate in self._get_raw_candidates_cpp():
-                out = self.get_fcnn_output()
+                out = self.get_ball_fcnn_output()
                 candidate.rating = np.mean(
                     out[
                         candidate.get_upper_left_y():
@@ -136,20 +136,32 @@ class FcnnHandler(CandidateFinder):
             self._sorted_rated_candidates = sorted(self.get_candidates(), key=lambda x: x.rating)
         return self._sorted_rated_candidates[0:count]
 
-    def get_fcnn_output(self):
+    def _get_fcnn_output(self):
         if self._fcnn_output is None:
             in_img = cv2.resize(self._image, (self._fcnn.input_shape[1], self._fcnn.input_shape[0]))
             in_img = cv2.cvtColor(in_img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
-            out = self._fcnn.predict(list([in_img]))
-            out = out.reshape(self._fcnn.output_shape[0], self._fcnn.output_shape[1])
-            out = (out * 255).astype(np.uint8)
-            self._fcnn_output = cv2.resize(out, (self._image.shape[1], self._image.shape[0]))
+            output_tensor = self._fcnn.predict(list([in_img]))
+            # TODO evaluate output tensor shape.
+            ball_output = _convert_tensor_to_image(output_tensor[:,:,0])
+            goalpost_output = _convert_tensor_to_image(output_tensor[:,:,1])
+            self._fcnn_output = (ball_output, goalpost_output)
         return self._fcnn_output
+
+    def _convert_tensor_to_image(self, tensor):
+        tensor = tensor.reshape(self._fcnn.output_shape[0], self._fcnn.output_shape[1])
+        image = (tensor * 255).astype(np.uint8)
+        return cv2.resize(image, (self._image.shape[1], self._image.shape[0]))
+
+    def get_ball_fcnn_output(self):
+        return self._get_fcnn_output()[0]
+
+    def get_goalpost_fcnn_output(self):
+        return self._get_fcnn_output()[1]
 
     def _get_raw_candidates_cpp(self):
 
         start = cv2.getTickCount()
-        out = self.get_fcnn_output()
+        out = self.get_ball_fcnn_output()
         end = cv2.getTickCount()
         self._debug_printer.info('Net:' + str((end - start) / cv2.getTickFrequency()), 'fcnn')
         start = cv2.getTickCount()
@@ -170,7 +182,7 @@ class FcnnHandler(CandidateFinder):
         returns a list of candidates [(Candidate), ...]
         :return: a list of candidates [(Candidate), ...]
         """
-        out = self.get_fcnn_output()
+        out = self.get_ball_fcnn_output()
         r, out_bin = cv2.threshold(out, 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
         candidates = list()
         # creating points
@@ -261,19 +273,13 @@ class FcnnHandler(CandidateFinder):
     def draw_debug_image(self):
         if not self._debug:
             return
-        cv2.imshow('FCNN Output', self.get_fcnn_output())
+        cv2.imshow('FCNN Output', self.get_ball_fcnn_output())
         cv2.waitKey(1)
 
-    def get_cropped_msg(self):
-        msg = ImageWithRegionOfInterest()
-        msg.header.frame_id = 'camera'
-        msg.header.stamp = rospy.get_rostime()
-        horizon_top = self._horizon_detector.get_upper_bound(y_offset=self._horizon_offset)
-        image_cropped = self.get_fcnn_output()[horizon_top:]  # cut off at horizon
-        msg.image = self.bridge.cv2_to_imgmsg(image_cropped, "mono8")
-        msg.regionOfInterest.x_offset = 0
-        msg.regionOfInterest.y_offset = horizon_top
-        msg.regionOfInterest.height = self.get_fcnn_output().shape[0] - 1 - horizon_top
-        msg.regionOfInterest.width = self.get_fcnn_output().shape[1] - 1
-        return msg
+    def get_ball_debug_msg(self):
+        return self.bridge.cv2_to_imgmsg(self.get_ball_fcnn_output(), "mono8")
+
+    def get_goalpost_debug_msg(self):
+        return self.bridge.cv2_to_imgmsg(self.get_goalpost_fcnn_output(), "mono8")
+
 
