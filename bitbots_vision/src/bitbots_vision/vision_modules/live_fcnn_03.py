@@ -188,11 +188,11 @@ class FCNN03:
 
             with tf.variable_scope("conv18"):
                 # 150x200x16
-                out = tf.layers.conv2d(out, 1, [3, 3], strides=[1, 1], padding="same")
+                out = tf.layers.conv2d(out, 2, [3, 3], strides=[1, 1], padding="same")
                 # out = tf.layers.batch_normalization(out)
                 logits = out
                 out = tf.maximum(tf.minimum(out, 1.0), 0.0)
-                # 150x200x1
+                # 150x200x2
 
         return out, logits
 

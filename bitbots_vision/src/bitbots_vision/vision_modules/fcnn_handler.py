@@ -142,8 +142,8 @@ class FcnnHandler(CandidateFinder):
             in_img = cv2.cvtColor(in_img, cv2.COLOR_BGR2RGB).astype(np.float32) / 255.0
             output_tensor = self._fcnn.predict(list([in_img]))
             # TODO evaluate output tensor shape.
-            ball_output = _convert_tensor_to_image(output_tensor[:,:,0])
-            goalpost_output = _convert_tensor_to_image(output_tensor[:,:,1])
+            ball_output = self._convert_tensor_to_image(output_tensor[:,:,:,1])
+            goalpost_output = self._convert_tensor_to_image(output_tensor[:,:,:,0])
             self._fcnn_output = (ball_output, goalpost_output)
         return self._fcnn_output
 
