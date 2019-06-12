@@ -387,7 +387,8 @@ class Vision:
             self.field_color_detector,
             self.field_boundary_detector,
             config,
-            self.debug_printer)
+            self.debug_printer,
+            self.runtime_evaluator)
 
         self.obstacle_detector = obstacle.ObstacleDetector(
             self.red_color_detector,

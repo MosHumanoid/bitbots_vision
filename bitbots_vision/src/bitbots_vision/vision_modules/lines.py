@@ -11,8 +11,8 @@ import cv2
 
 
 class LineDetector:
-    def __init__(self, white_detector, field_color_detector, field_boundary_detector, config, debug_printer):
-        # type: (ColorDetector, ColorDetector, FieldBoundaryDetector, dict, DebugPrinter) -> None
+    def __init__(self, white_detector, field_color_detector, field_boundary_detector, config, debug_printer, runtime_evaluator=None):
+        # type: (ColorDetector, ColorDetector, FieldBoundaryDetector, dict, DebugPrinter, RuntimeEvaluator) -> None
         self._image = None
         self._preprocessed_image = None
         self._linepoints = None
@@ -22,9 +22,12 @@ class LineDetector:
         self._field_color_detector = field_color_detector
         self._field_boundary_detector = field_boundary_detector
         self._debug_printer = debug_printer
+        self._runtime_evaluator = runtime_evaluator
         # init config
         self._field_boundary_offset = config['line_detector_field_boundary_offset']
         self._linepoints_range = config['line_detector_linepoints_range']
+        self._max_nonlinepoints_range = min(config['line_detector_max_nonlinepoints_range'],
+                                            config['line_detector_linepoints_range'])
         self._blur_kernel_size = config['line_detector_blur_kernel_size']
 
     def set_image(self, image):
@@ -40,23 +43,40 @@ class LineDetector:
 
     def compute_linepoints(self):
         if self._linepoints is None or self._nonlinepoints is None:
-
             self._linepoints = list()
             self._nonlinepoints = list()
+            self._max_nonlinepoints = [None] * self._max_nonlinepoints_range  # creates a list of a certain length
             imgshape = self._get_preprocessed_image().shape
             white_masked_image = self._white_detector.mask_image(
                 self._get_preprocessed_image())
 
             x_list = np.random.randint(0, imgshape[1],
                                        size=self._linepoints_range, dtype=int)
-            y_list = np.random.randint(self._field_boundary_detector.get_upper_bound(self._field_boundary_offset), imgshape[0],
+            y_list = np.random.randint(self._field_boundary_detector.get_upper_bound(self._field_boundary_offset),
+                                       imgshape[0],
                                        size=self._linepoints_range, dtype=int)
-            for p in zip(x_list, y_list):
-                if white_masked_image[p[1]][p[0]]:
-                    self._linepoints.append(p)
+
+            i = 0
+            # appends the first points to either the linepoints or the nonlinepoints
+            while i < self._max_nonlinepoints_range:
+                if white_masked_image[y_list[i]][x_list[i]]:
+                    self._linepoints.append((x_list[i], y_list[i]))
                 else:
-                    if self._field_boundary_detector.point_under_field_boundary(p):
-                        self._nonlinepoints.append(p)
+                    if self._field_boundary_detector.point_under_field_boundary((x_list[i], y_list[i])):
+                        self._max_nonlinepoints[i] = (x_list[i], y_list[i])
+                i += 1
+
+            # the other points are only appended to the linepoints or not at all
+            # in order to not get too many nonlinepoints
+            while i < self._linepoints_range:
+                if white_masked_image[y_list[i]][x_list[i]]:
+                    self._linepoints.append((x_list[i], y_list[i]))
+                i += 1
+
+            # filter the list so that no point is None
+            for nlp in self._max_nonlinepoints:
+                if nlp:
+                    self._nonlinepoints.append(nlp)
 
     def get_linepoints(self):
         self.compute_linepoints()
