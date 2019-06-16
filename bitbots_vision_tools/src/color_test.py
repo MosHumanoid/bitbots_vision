@@ -1,7 +1,7 @@
 #! /usr/bin/env python2
 from dynamic_reconfigure.server import Server
 from bitbots_vision_tools.cfg import ColorTestConfig
-from bitbots_vision.vision_modules import color
+from bitbots_vision.vision_modules import color, debug
 from sensor_msgs.msg import Image
 from cv_bridge import CvBridge
 import rospy
@@ -15,35 +15,20 @@ class ColorTest:
     def __init__(self):
         rospack = rospkg.RosPack()
         self.package_path = rospack.get_path('bitbots_vision_tools')
-        self.use_pixel_list = rospy.get_param(
-            'color_test_params/color_detector_implementation/use_PixelListColorDetector')
-        # default configuration
-        if self.use_pixel_list:
-            self.color_detector = color.PixelListColorDetector(
-                self.package_path +
-                rospy.get_param('color_test_params/field_color_detector/path'))
-        else:
-            self.color_detector = color.HsvSpaceColorDetector(
-                rospy.get_param('color_test_params/white_color_detector/lower_values'),
-                rospy.get_param('color_test_params/white_color_detector/upper_values'))
 
         # ROS-Stuff:
         rospy.init_node('bitbots_vision_color_test')
 
-        srv = Server(ColorTestConfig, self._dynamic_reconfigure_callback)
-
-        # subscriber:
         self.bridge = CvBridge()
-        rospy.Subscriber(rospy.get_param('color_test_params/ROS/img_msg_topic'),
-                         Image,
-                         self._image_callback,
-                         queue_size=rospy.get_param(
-                             'color_test_params/ROS/img_queue_size'))
+
+        self.config = {}
+
+        srv = Server(ColorTestConfig, self._dynamic_reconfigure_callback)
 
         rospy.spin()
 
-    def _image_callback(self, img):
-        self.handle_image(img)
+    def _image_callback(self, image_msg):
+        self.handle_image(image_msg)
 
     def handle_image(self, image_msg):
         # converting the ROS image message to CV2-image
@@ -52,39 +37,43 @@ class ColorTest:
         # mask image
         mask_img = self.color_detector.mask_image(image)
 
-        # output masked image
-        cv2.imshow('Debug Image', mask_img)
-        cv2.waitKey(1)
+        self.imagepublisher.publish(self.bridge.cv2_to_imgmsg(mask_img, '8UC1'))
 
     def _dynamic_reconfigure_callback(self, config, level):
-        self.debug_mode = config['debug_on']
-        # exchange color_detector between PixelListColorDetector and HsvSpaceColorDetector
-        self.use_pixel_list = config['use_pixel_list']
-        if self.debug_mode:
-            print('use_pixel_list = ' + str(self.use_pixel_list))
-        if self.use_pixel_list:
-            # TODO: fix PixelListColorDetector
-            # use PixelListColorDetector
-            if os.path.isfile(self.package_path +
-                              config['pixel_list_path']):
-                self.color_detector = color.PixelListColorDetector(self.package_path +
-                                                                   config['pixel_list_path'])
-                if self.debug_mode:
-                    print('color_detector is instance of PixelListColorDetector('
-                          + self.package_path
-                          + config['pixel_list_path'])
-            else:
-                print('FILE "'
-                      + self.package_path + config['pixel_list_path'] + '" does NOT EXIST')
-        else:
-            # use HsvSpaceColorDetector
-            self.color_detector = color.HsvSpaceColorDetector((config['h_min'], config['s_min'], config['v_min']),
-                                                              (config['h_max'], config['s_max'], config['v_max']))
-            if self.debug_mode:
-                print('color_detector is instance of HsvSpaceColorDetector('
-                      + str((config['h_min'], config['s_min'], config['v_min']))
-                      + ', '
-                      + str((config['h_max'], config['s_max'], config['v_max'])))
+        self.debug_printer = debug.DebugPrinter(
+            debug_classes=debug.DebugPrinter.generate_debug_class_list_from_string(
+                config['debug_printer_classes']))
+
+        self.color_detector = color.HsvSpaceColorDetector(
+            self.debug_printer,
+            (config['lower_values_h'], config['lower_values_s'], config['lower_values_v']),
+            (config['upper_values_h'], config['upper_values_s'], config['upper_values_v']))
+
+        # Register publisher for 'color_tester_mask_image'-messages
+        if 'color_tester_mask_image' not in self.config or \
+                self.config['color_tester_mask_image'] != config['color_tester_mask_image']:
+            self.imagepublisher = rospy.Publisher(
+                'color_tester_mask_image',
+                Image,
+                queue_size=1)
+
+        # subscriber of camera image:
+        if 'img_msg_topic' not in self.config or \
+            self.config['img_msg_topic'] != config['img_msg_topic'] or \
+            'ROS_img_queue_size' not in self.config or \
+            self.config['img_queue_size'] != config['img_queue_size']:
+            if hasattr(self, 'image_sub'):
+                self.image_sub.unregister()
+            self.image_sub = rospy.Subscriber(
+                config['img_msg_topic'],
+                Image,
+                self._image_callback,
+                queue_size=config['img_queue_size'],
+                tcp_nodelay=True,
+                buff_size=60000000)
+            # https://github.com/ros/ros_comm/issues/536
+
+            self.config = config
         return config
 
 if __name__ == "__main__":

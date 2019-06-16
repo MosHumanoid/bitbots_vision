@@ -1,4 +1,4 @@
-#! /usr/bin/env python2
+#! /usr/bin/env python3
 
 import os
 import cv2
@@ -8,11 +8,12 @@ import rospkg
 import threading
 from cv_bridge import CvBridge
 from dynamic_reconfigure.server import Server
-from sensor_msgs.msg import Image
+from dynamic_reconfigure.encoding import Config as DynamicReconfigureConfig
+from sensor_msgs.msg import Image, JointState
 from humanoid_league_msgs.msg import BallInImage, BallsInImage, LineInformationInImage, \
     LineSegmentInImage, ObstaclesInImage, ObstacleInImage, ImageWithRegionOfInterest, GoalPartsInImage, PostInImage, \
     GoalInImage
-from bitbots_vision.vision_modules import lines, horizon, color, debug, live_classifier, \
+from bitbots_vision.vision_modules import lines, field_boundary, color, debug, live_classifier, \
     classifier, ball, fcnn_handler, live_fcnn_03, dummy_ballfinder, obstacle, evaluator
 from bitbots_vision.cfg import VisionConfig
 from bitbots_msgs.msg import Config
@@ -36,6 +37,9 @@ class Vision:
 
         self.config = {}
 
+        # the head_joint_states is used by the dynamic field_boundary detector
+        self.head_joint_state = None
+
         self.debug_image_dings = debug.DebugImage()  # Todo: better variable name
         if self.debug_image_dings:
             self.runtime_evaluator = evaluator.RuntimeEvaluator(None)
@@ -50,7 +54,6 @@ class Vision:
 
         # Register VisionConfig server (dynamic reconfigure) and set callback
         srv = Server(VisionConfig, self._dynamic_reconfigure_callback)
-        #rospy.loginfo("Vision startup")
         rospy.spin()
 
     def _image_callback(self, image_msg):
@@ -62,7 +65,6 @@ class Vision:
         Sometimes the queue gets to large, even when the size is limeted to 1. 
         That's, why we drop old images manually.
         """
-        #rospy.loginfo("image_callback")
         # drops old images and cleans up queue
         image_age = rospy.get_rostime() - image_msg.header.stamp 
         if image_age.to_sec() > 0.1:
@@ -71,13 +73,20 @@ class Vision:
 
         self.handle_image(image_msg)
 
+    def _head_joint_state_callback(self, headjoint_msg):
+        # type: (JointState) -> None
+        """
+        Sets a new head_joint_state for the field-boundary-module when a new msg is received
+        :param headjoint_msg: the current vertical position of the head
+        """
+        self.field_boundary_detector.set_head_joint_state(headjoint_msg)
+
     def handle_image(self, image_msg):
-        #rospy.loginfo("handle_image")
         # converting the ROS image message to CV2-image
         image = self.bridge.imgmsg_to_cv2(image_msg, 'bgr8')
 
         # setup detectors
-        self.horizon_detector.set_image(image)
+        self.field_boundary_detector.set_image(image)
         self.obstacle_detector.set_image(image)
         self.line_detector.set_image(image)
 
@@ -87,7 +96,7 @@ class Vision:
         self.ball_detector.set_image(image)
 
         if self.config['vision_parallelize']:
-            self.horizon_detector.compute_all()  # computes stuff which is needed later in the processing
+            self.field_boundary_detector.compute_all()  # computes stuff which is needed later in the processing
             fcnn_thread = threading.Thread(target=self.ball_detector.compute_top_candidate)
             conventional_thread = threading.Thread(target=self._conventional_precalculation())
 
@@ -101,11 +110,37 @@ class Vision:
             self._conventional_precalculation()
 
         # TODO: handle all ball candidates
-        top_ball_candidate = self.ball_detector.get_top_candidate()
 
-        # create ball msg
-        # TODO: publish empty msg if no top candidate as described in msg description
+        #"""
+        ball_candidates = self.ball_detector.get_candidates()
+
+        if ball_candidates:
+            balls_under_field_boundary = self.field_boundary_detector.balls_under_field_boundary(ball_candidates)
+            if balls_under_field_boundary:
+                sorted_rated_candidates = sorted(balls_under_field_boundary, key=lambda x: x.rating)
+                top_ball_candidate = list([max(sorted_rated_candidates[0:1], key=lambda x: x.rating)])[0]
+            else:
+                top_ball_candidate = None
+        else:
+            top_ball_candidate = None
+        """
+        # check whether ball candidates are under the field_boundary
+        # TODO: handle multiple ball candidates
+        top_ball_candidate = self.ball_detector.get_top_candidate()
+        if top_ball_candidate:
+            ball = []
+            ball.append(top_ball_candidate)
+            ball_under_field_boundary = self.field_boundary_detector.balls_under_field_boundary(ball)
+            if ball_under_field_boundary:
+                top_ball_candidate = ball_under_field_boundary[0]
+            else:
+                top_ball_candidate = None
+        #"""
+
+        # check whether ball candidates are over rating threshold
         if top_ball_candidate and top_ball_candidate.rating > self._ball_candidate_threshold:
+            # create ball msg
+            # TODO: publish empty msg if no top candidate as described in msg description
             balls_msg = BallsInImage()
             balls_msg.header.frame_id = image_msg.header.frame_id
             balls_msg.header.stamp = image_msg.header.stamp
@@ -199,9 +234,27 @@ class Vision:
             line_msg.segments.append(ls)
         self.pub_lines.publish(line_msg)
 
+        # create non_line msg
+        non_line_msg = LineInformationInImage()
+        non_line_msg.header.frame_id = image_msg.header.frame_id
+        non_line_msg.header.stamp = image_msg.header.stamp
+        i = 0
+        for nlp in self.line_detector.get_nonlinepoints():
+            nls = LineSegmentInImage()
+            nls.start.x = nlp[0]
+            nls.start.y = nlp[1]
+            nls.end = nls.start
+            if i % 2 == 0:
+                non_line_msg.segments.append(nls)
+            i += 1
+        self.pub_non_lines.publish(non_line_msg)
+
         if self.ball_fcnn_publish_output and self.config['vision_ball_classifier'] == 'fcnn':
-            self.pub_ball_fcnn.publish(self.ball_detector.get_ball_debug_msg())
-            self.pub_goalpost_fcnn.publish(self.ball_detector.get_goalpost_debug_msg())
+            self.pub_ball_fcnn.publish(self.ball_detector.get_cropped_msg())
+
+        if self.publish_fcnn_debug_image and self.config['vision_ball_classifier'] == 'fcnn':
+            self.pub_debug_fcnn_ball_image.publish(self.ball_detector.get_ball_debug_msg())
+            self.pub_debug_fcnn_goalpost_image.publish(self.ball_detector.get_goalpost_debug_msg())
 
         # do debug stuff
         if self.debug:
@@ -226,24 +279,31 @@ class Vision:
                 (255, 255, 255),
                 thickness=3
             )
-            self.debug_image_dings.draw_horizon(
-                self.horizon_detector.get_horizon_points(),
+            self.debug_image_dings.draw_field_boundary(
+                self.field_boundary_detector.get_field_boundary_points(),
                 (0, 0, 255))
+            self.debug_image_dings.draw_field_boundary(
+                self.field_boundary_detector.get_convex_field_boundary_points(),
+                (0, 255, 255))
             self.debug_image_dings.draw_ball_candidates(
                 self.ball_detector.get_candidates(),
                 (0, 0, 255))
             self.debug_image_dings.draw_ball_candidates(
-                self.horizon_detector.balls_under_horizon(
+                self.field_boundary_detector.balls_under_field_boundary(
                     self.ball_detector.get_candidates(),
                     self._ball_candidate_y_offset),
                 (0, 255, 255))
             # draw top candidate in
             self.debug_image_dings.draw_ball_candidates([top_ball_candidate],
                                                         (0, 255, 0))
-            # draw linepoints in black
+            # draw linepoints in red
             self.debug_image_dings.draw_points(
                 self.line_detector.get_linepoints(),
                 (0, 0, 255))
+            # draw nonlinepoints in black
+            self.debug_image_dings.draw_points(
+                self.line_detector.get_nonlinepoints(),
+                (0, 0, 0))
             # debug_image_dings.draw_line_segments(line_detector.get_linesegments(), (180, 105, 255))
             if self.debug_image:
                 self.debug_image_dings.imshow()
@@ -255,14 +315,13 @@ class Vision:
         self.line_detector.compute_linepoints()
 
     def _dynamic_reconfigure_callback(self, config, level):
-        #rospy.loginfo("dynamic reconfigure callback")
         self.debug_printer = debug.DebugPrinter(
             debug_classes=debug.DebugPrinter.generate_debug_class_list_from_string(
                 config['vision_debug_printer_classes']))
         self.runtime_evaluator = evaluator.RuntimeEvaluator(self.debug_printer)
 
         self._ball_candidate_threshold = config['vision_ball_candidate_rating_threshold']
-        self._ball_candidate_y_offset = config['vision_ball_candidate_horizon_y_offset']
+        self._ball_candidate_y_offset = config['vision_ball_candidate_field_boundary_y_offset']
 
         self.debug_image = config['vision_debug_image']
         self.debug_image_msg = config['vision_publish_debug_image']
@@ -276,6 +335,8 @@ class Vision:
             rospy.logwarn('ball FCNN output publishing is enabled')
         else:
             rospy.logwarn('ball FCNN output publishing is disabled')
+
+        self.publish_fcnn_debug_image = config['ball_fcnn_debug']
 
         if config['vision_ball_classifier'] == 'dummy':
             self.ball_detector = dummy_ballfinder.DummyClassifier(None, None, self.debug_printer)
@@ -321,7 +382,7 @@ class Vision:
                 self.package_path,
                 config)
 
-        self.horizon_detector = horizon.HorizonDetector(
+        self.field_boundary_detector = field_boundary.FieldBoundaryDetector(
             self.field_color_detector,
             config,
             self.debug_printer,
@@ -330,7 +391,7 @@ class Vision:
         self.line_detector = lines.LineDetector(
             self.white_color_detector,
             self.field_color_detector,
-            self.horizon_detector,
+            self.field_boundary_detector,
             config,
             self.debug_printer)
 
@@ -338,7 +399,7 @@ class Vision:
             self.red_color_detector,
             self.blue_color_detector,
             self.white_color_detector,
-            self.horizon_detector,
+            self.field_boundary_detector,
             self.runtime_evaluator,
             config,
             self.debug_printer
@@ -370,7 +431,7 @@ class Vision:
         # these config params have domain-specific names which could be problematic for fcnn handlers handling e.g. goal candidates
         # this enables 2 fcnns with different configs.
         self.ball_fcnn_config = {
-            'debug': config['ball_fcnn_debug'] and self.debug_image,
+            'debug': config['ball_fcnn_debug'],
             'threshold': config['ball_fcnn_threshold'],
             'expand_stepsize': config['ball_fcnn_expand_stepsize'],
             'pointcloud_stepsize': config['ball_fcnn_pointcloud_stepsize'],
@@ -378,7 +439,7 @@ class Vision:
             'min_candidate_diameter': config['ball_fcnn_min_ball_diameter'],
             'max_candidate_diameter': config['ball_fcnn_max_ball_diameter'],
             'candidate_refinement_iteration_count': config['ball_fcnn_candidate_refinement_iteration_count'],
-            'publish_horizon_offset': config['ball_fcnn_publish_horizon_offset'],
+            'publish_field_boundary_offset': config['ball_fcnn_publish_field_boundary_offset'],
         }
 
         # load fcnn
@@ -393,7 +454,7 @@ class Vision:
                 rospy.logwarn(config['vision_ball_classifier'] + " vision is running now")
             self.ball_detector = fcnn_handler.FcnnHandler(
                 self.ball_fcnn,
-                self.horizon_detector,
+                self.field_boundary_detector,
                 self.ball_fcnn_config,
                 self.debug_printer)
 
@@ -415,6 +476,16 @@ class Vision:
                 self.pub_lines.unregister()
             self.pub_lines = rospy.Publisher(
                 config['ROS_line_msg_topic'],
+                LineInformationInImage,
+                queue_size=5)
+
+        # publisher for nonlinepoints
+        if 'ROS_non_line_msg_topic' not in self.config or \
+                self.config['ROS_non_line_msg_topic'] != config['ROS_non_line_msg_topic']:
+            if hasattr(self, 'pub_non_lines'):
+                self.pub_non_lines.unregister()
+            self.pub_non_lines = rospy.Publisher(
+                config['ROS_non_line_msg_topic'],
                 LineInformationInImage,
                 queue_size=5)
 
@@ -442,16 +513,7 @@ class Vision:
                 self.pub_ball_fcnn.unregister()
             self.pub_ball_fcnn = rospy.Publisher(
                 config['ROS_fcnn_ball_img_msg_topic'],
-                Image,
-                queue_size=1)
-
-        if 'ROS_fcnn_goalpost_img_msg_topic' not in self.config or \
-                self.config['ROS_fcnn_goalpost_img_msg_topic'] != config['ROS_fcnn_goalpost_img_msg_topic']:
-            if hasattr(self, 'pub_goalpost_fcnn'):
-                self.pub_goalpost_fcnn.unregister()
-            self.pub_goalpost_fcnn = rospy.Publisher(
-                config['ROS_fcnn_goalpost_img_msg_topic'],
-                Image,
+                ImageWithRegionOfInterest,
                 queue_size=1)
 
         if 'ROS_debug_image_msg_topic' not in self.config or \
@@ -460,6 +522,24 @@ class Vision:
                 self.pub_debug_image.unregister()
             self.pub_debug_image = rospy.Publisher(
                 config['ROS_debug_image_msg_topic'],
+                Image,
+                queue_size=1)
+
+        if 'ROS_debug_fcnn_ball_image_msg_topic' not in self.config or \
+                self.config['ROS_debug_fcnn_ball_image_msg_topic'] != config['ROS_debug_fcnn_ball_image_msg_topic']:
+            if hasattr(self, 'pub_debug_fcnn_ball_image'):
+                self.pub_debug_fcnn_ball_image.unregister()
+            self.pub_debug_fcnn_ball_image = rospy.Publisher(
+                config['ROS_debug_fcnn_ball_image_msg_topic'],
+                Image,
+                queue_size=1)
+
+        if 'ROS_debug_fcnn_goalpost_image_msg_topic' not in self.config or \
+                self.config['ROS_debug_fcnn_goalpost_image_msg_topic'] != config['ROS_debug_fcnn_goalpost_image_msg_topic']:
+            if hasattr(self, 'pub_debug_fcnn_goalpost_image'):
+                self.pub_debug_fcnn_goalpost_image.unregister()
+            self.pub_debug_fcnn_goalpost_image = rospy.Publisher(
+                config['ROS_debug_fcnn_goalpost_image_msg_topic'],
                 Image,
                 queue_size=1)
 
@@ -477,9 +557,26 @@ class Vision:
                 buff_size=60000000)
             # https://github.com/ros/ros_comm/issues/536
 
+        # subscriber for the vertical position of the head, used by the dynamic field-boundary-detector
+        if 'ROS_head_joint_msg_topic' not in self.config or \
+                self.config['ROS_head_joint_msg_topic'] != config['ROS_head_joint_msg_topic']:
+            if hasattr(self, 'head_sub'):
+                self.head_sub.unregister()
+            self.head_sub = rospy.Subscriber(
+                config['ROS_head_joint_msg_topic'],
+                JointState,
+                self._head_joint_state_callback,
+                queue_size=config['ROS_head_joint_state_queue_size'],
+                tcp_nodelay=True)
+
         # Publish Config-message
+        # Clean config dict to avoid not dumpable types
+        config_cleaned = {}
+        for key, value in config.items():
+            if type(value) != DynamicReconfigureConfig:
+                config_cleaned[key] = value
         msg = Config()
-        msg.data = yaml.dump(config)
+        msg.data = yaml.dump(config_cleaned)
         self.pub_config.publish(msg)
 
         self.config = config
