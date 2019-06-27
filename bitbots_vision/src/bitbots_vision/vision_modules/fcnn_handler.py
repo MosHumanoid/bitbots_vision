@@ -19,15 +19,17 @@ class FcnnHandler(CandidateFinder):
     copy them into the vision package config):
 
     ball_fcnn:
-        model_path: '/models/fcnn03'
-        debug: true  # only active when true and vision/debug is true, too!
-        threshold: .5  # minimal value for a candidate to be considered
-        expand_stepsize: 4
-        pointcloud_stepsize: 10
-        shuffle_candidate_list: true  # shuffles the list of possible candidate points
-        min_candidate_diameter: 10
-        max_candidate_diameter: 200
-        candidate_refinement_iteration_count: 1
+        debug: false  # show debug image; only active when true and vision/debug is true, too!
+        model_path: '/models/2019_05_timon_basler'  # path to the fcnn model (in the package folder
+        threshold: .6  # minimal activation for a ball candidate to be considered
+        expand_stepsize: 4  ' TODO
+        pointcloud_stepsize: 10  # TODO
+        shuffle_candidate_list: false  # toggles shuffling of the list of possible ball candidate points
+        min_ball_diameter: 15  # minimum diameter of a ball
+        max_ball_diameter: 150  # maximum diameter of a ball
+        candidate_refinement_iteration_count: 1  # number of iterations of refinement of ball candidates
+        publish_output: false  # publish the output of the ball fcnn as ImageWithCorners
+        publish_field_boundary_offset: 5  # the offset added to the field_boundary when cropping the fcnn output for publication in pixels
     """
 
     def __init__(self, fcnn, field_boundary_detector, config, debug_printer):
@@ -54,9 +56,9 @@ class FcnnHandler(CandidateFinder):
 
     def set_config(self, config):
         self._debug = config['debug']
-        self._threshold = config['threshold']  # minimal activation
-        self._expand_stepsize = config['expand_stepsize']  #
-        self._pointcloud_stepsize = config['pointcloud_stepsize']  #
+        self._threshold = config['threshold']
+        self._expand_stepsize = config['expand_stepsize']
+        self._pointcloud_stepsize = config['pointcloud_stepsize']
         self._shuffle_candidate_list = config['shuffle_candidate_list']
         self._min_candidate_diameter = config['min_candidate_diameter']
         self._max_candidate_diameter = config['max_candidate_diameter']
