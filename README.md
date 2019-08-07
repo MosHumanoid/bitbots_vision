@@ -12,6 +12,49 @@ In bitbots_vision/models the fcnn models are stored. Due to their size, these ar
 After changes in the models or config/color_spaces directory, rebuilding the vision node is required to see these changes in dynamic reconfigure.
 To tweak the camera image, use the settings in the image provider.
 
+nodes
+---------------------
+
+pkg="bitbots_vision" type="vision.py" name="bitbots_vision"
+
+publishers
+---------------------
+
+pub_config topic:'/speak' type:Speak
+speak_publisher topic:'vision_config' type:Config
+pub_balls topic: config['ROS_ball_msg_topic'] type:BallsInImage
+pub_lines topic:config['ROS_line_msg_topic'] type:LineInformationInImage
+pub_obstacle topic:config['ROS_obstacle_msg_topic'] type:ObstaclesInImage
+pub_goal topic:config['ROS_goal_msg_topic'] type:GoalInImage
+pub_ball_fcnn topic:config['ROS_fcnn_img_msg_topic'] type:ImageWithRegionOfInterest
+pub_debug_image topic:config['ROS_debug_image_msg_topic'] type:Image
+pub_debug_fcnn_image topic:config['ROS_debug_fcnn_image_msg_topic'] type:Image
+
+subscribers
+---------------------
+
+image_sub topic: config['ROS_img_msg_topic'] type:Image
+callback: _image_callback
+head_sub topic: config['ROS_head_joint_msg_topic'] type:JointState
+callback: _head_joint_state_callback
+
+
+
+pkg="bitbots_vision" type="dynamic_color_space.py" name="bitbots_dynamic_color_space"
+
+publishers
+---------------------
+
+pub_color_space topic: vision_config['ROS_dynamic_color_space_msg_topic'] type:ColorSpace
+
+subscribers
+---------------------
+sub_vision_config_msg topic: 'vision_config' type:Config
+callback: vision_config_callback
+sub_image_msg topic: vision_config['ROS_img_msg_topic']type:Image
+callback: image_callback
+
+
 Neural Network Models
 ---------------------
 
