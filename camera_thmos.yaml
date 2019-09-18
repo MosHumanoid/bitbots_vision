@@ -1,0 +1,20 @@
+image_width: 640
+image_height: 480
+camera_name: THcamera
+camera_matrix:
+  rows: 3
+  cols: 3
+  data: [0.047752853359299678, 0, 320, 0, 0.047752853359299678, 240, 0, 0, 1]
+distortion_model: plumb_bob
+distortion_coefficients:
+  rows: 1
+  cols: 5
+  data: [-0.097678342673299348, 0.32023432507822319, 0, 0, -0.40938224285299635]
+rectification_matrix:
+  rows: 3
+  cols: 3
+  data: [1, 0, 0, 0, 1, 0, 0, 0, 1]
+projection_matrix:
+  rows: 3
+  cols: 4
+  data: [1325.380493164062, 0, 1055.874313746717, 0, 0, 1345.070190429688, 576.901411017534, 0, 0, 0, 1, 0]
