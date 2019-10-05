@@ -44,7 +44,9 @@
     <group if="$(arg camera)">
         <group unless="$(arg sim)">
             <include unless="$(arg basler)" file="$(find wolves_image_provider)/launch/image_provider.launch" />
-            <include if="$(arg basler)" file="$(find bitbots_bringup)/launch/basler_camera.launch" />
+		<!--changing basler cam to usb cam-->
+	    <include if="$(arg basler)" file="$(find bitbots_vision)/launch/usb_camera.launch" />
+            <!--<include if="$(arg basler)" file="$(find bitbots_bringup)/launch/basler_camera.launch" />-->
         </group>
     </group>
 
