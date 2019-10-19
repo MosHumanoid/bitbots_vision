@@ -1,3 +1,9 @@
+#! /usr/bin/env python3
+"""
+import sys
+
+sys.path.remove('/opt/ros/melodic/lib/python2.7/dist-packages')
+"""
 import abc
 import cv2
 import yaml
@@ -12,6 +18,8 @@ from cv_bridge import CvBridge
 from sensor_msgs.msg import Image
 from bitbots_msgs.msg import ColorSpace
 from .debug import DebugPrinter
+
+
 
 
 class ColorDetector(object):
