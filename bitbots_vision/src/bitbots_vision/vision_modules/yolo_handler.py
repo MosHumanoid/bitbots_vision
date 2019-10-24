@@ -55,6 +55,7 @@ class YoloHandler():
             self.ball_candidates = []
             self.goalpost_candidates = []
             for out in self.results:
+                print("********{}********".format(out[0]))
                 class_id = out[0]
                 confidence = out[1]
                 x, y, w, h = out[2]

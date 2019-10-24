@@ -57,9 +57,9 @@ class Vision:
         self._first_callback = True
 
         # Register VisionConfig server (dynamic reconfigure) and set callback
-        rospy.logerr('start srv')
+        #rospy.logerr('start srv')
         srv = Server(VisionConfig, self._dynamic_reconfigure_callback)
-        rospy.logerr('end err')
+        #rospy.logerr('end err')
         rospy.spin()
 
     def _image_callback(self, image_msg):
@@ -349,7 +349,7 @@ class Vision:
         self.line_detector.compute_linepoints()
 
     def _dynamic_reconfigure_callback(self, config, level):
-        rospy.logerr("in dynamic re callback")
+        #rospy.logerr("in dynamic re callback")
         self.debug_printer = debug.DebugPrinter(
             debug_classes=debug.DebugPrinter.generate_debug_class_list_from_string(
                 config['vision_debug_printer_classes']))
