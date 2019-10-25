@@ -103,14 +103,14 @@ Compiling
 clone bitbots_vision and [usb_cam](https://github.com/Zcyyy/usb_cam) in your bitbots_mate  
 - *compiling*   
 Delete the deve, build, logs, and.catkin_tools folders in your workspace，and run  
-(```)  
+```  
 catkin config -DPYTHON_EXECUTABLE=/usr/bin/python3  
 catkin build  
-(```)   
+```   
 
 You need to perform a few operations to run the simulation environment,after you source the path,of course  
-(```)  
+```  
 roslaunch bitbots_vision vision_startup.launch sim:=true camera:=false  
-(```)  
+```  
 
 
